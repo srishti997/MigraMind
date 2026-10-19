@@ -76,11 +76,15 @@ class Authentication:
             if request.headers.get('origin') not in origins:
                 raise HTTPException(403, 'Request origin is not allowed')
             token = request.headers.get('x-csrf-token', '')
-            if not row or not secrets.compare_digest(token, row.csrf_token): raise HTTPException(403, 'Refresh the page and try again')
+            if not row or not secrets.compare_digest(token.encode('utf-8'), row.csrf_token.encode()): raise HTTPException(403, 'Refresh the page and try again')
         def require_user(request: Request, s=Depends(db)):
             row = session(request, s)
             user = s.get(User, row.user_id) if row and row.user_id else None
             if not user: raise HTTPException(401, 'Sign in to continue')
+            # Cookies are shared across tabs. Bind reads to the mounted UI's session.
+            token = request.headers.get('x-csrf-token', '').encode('utf-8')
+            if request.method in ('GET','HEAD') and not secrets.compare_digest(token, row.csrf_token.encode()):
+                raise HTTPException(401, 'Session changed. Sign in to continue')
             if request.method not in ('GET','HEAD','OPTIONS'): csrf(request, row)
             return user
         self.require_user = require_user
@@ -91,7 +95,7 @@ class Authentication:
             row = LoginSession(user_id=user.id if user else None, token_digest=digest(raw), csrf_token=secrets.token_urlsafe(32), expires_at=(now()+timedelta(hours=ttl if user else 1)).isoformat())
             s.add(row); s.commit()
             response.set_cookie(cookie, raw, httponly=True, secure=secure, samesite='lax', path='/', max_age=ttl*3600 if user else 3600)
-            return {'user':public(user),'csrf_token':row.csrf_token}
+            return {'user':public(user),'csrf_token':row.csrf_token,'expires_at':row.expires_at}
         def attempts(request, email=''):
             self.limiter.check(('ip', request.client.host if request.client else 'unknown'), 30)
             if email: self.limiter.check(('account',digest(email)),10)
@@ -99,7 +103,7 @@ class Authentication:
         def bootstrap(request: Request, response: Response, s=Depends(db)):
             row = session(request,s)
             if row:
-                return {'user':public(s.get(User,row.user_id)) if row.user_id else None,'csrf_token':row.csrf_token}
+                return {'user':public(s.get(User,row.user_id)) if row.user_id else None,'csrf_token':row.csrf_token,'expires_at':row.expires_at}
             attempts(request)
             # Expired sessions are removed; opaque identifiers never reused on login.
             s.query(LoginSession).filter(LoginSession.expires_at < now().isoformat()).delete()

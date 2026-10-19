@@ -81,6 +81,45 @@ def test_expired_invalid_sessions(clients,kind):
     assert a.post('/api/attack-sessions/start').status_code==401
     assert a.get('/api/auth/session').json()['user'] is None
 
+def test_stale_tab_cannot_read_new_accounts_records(clients):
+    a,b,_=clients
+    register(a);register(b,'b@example.test')
+    b.post('/api/episodes',json={'date':'2026-10-19','notes':'Synthetic B private record'})
+    # Browser tabs share the session cookie, but retain separate in-memory CSRF tokens.
+    # After another tab logs in as B, the stale A UI must not receive B's health data.
+    a.cookies.clear();a.cookies.update(b.cookies)
+    for path in ('episodes','contacts','wellness','early-symptoms','profile','attack-sessions',
+                 'attack-sessions/current','support/preferences','support/feedback',
+                 'support/recommendations','insights','export','account','account/consents'):
+        response=a.get('/api/'+path)
+        assert response.status_code==401,path
+        assert 'Synthetic B private record' not in response.text
+
+def test_every_protected_mutation_enforces_csrf_and_origin(clients):
+    a,_,_=clients;register(a)
+    for route in app.routes:
+        path=getattr(route,'path','')
+        if not path.startswith('/api/') or path.startswith('/api/auth/'):continue
+        for method in route.methods & {'POST','PUT','DELETE','PATCH'}:
+            target=path.replace('{id}','99999')
+            for headers in ({'X-CSRF-Token':''},{'Origin':'https://attacker.example'},{'Origin':''}):
+                response=a.request(method,target,json={},headers=headers)
+                assert response.status_code==403,(method,path,headers)
+
+def test_cors_rejects_untrusted_origin_and_session_rotation_revokes_previous_cookie(clients):
+    a,b,_=clients;register(a)
+    response=a.options('/api/episodes',headers={'Origin':'https://attacker.example','Access-Control-Request-Method':'GET','Access-Control-Request-Headers':'X-CSRF-Token'})
+    assert response.status_code==400
+    assert 'access-control-allow-origin' not in response.headers
+    assert 'access-control-allow-origin' not in a.get('/api/auth/session',headers={'Origin':'https://attacker.example'}).headers
+    cookie=a.cookies.get('migramind_session');old_csrf=a.headers['X-CSRF-Token']
+    assert login(a).status_code==200
+    assert a.cookies.get('migramind_session')!=cookie
+    assert a.headers['X-CSRF-Token']!=old_csrf
+    b.cookies.clear();b.cookies.set('migramind_session',cookie)
+    assert b.get('/api/episodes',headers={'X-CSRF-Token':old_csrf}).status_code==401
+    assert a.get('/api/episodes',headers={'X-CSRF-Token':''}).status_code==401
+
 def test_auth_rate_limiting_and_duplicate_registration(clients):
     a,b,_=clients;register(a)
     assert b.post('/api/auth/register',json={'email':'a@example.test','password':PASSWORD,'display_name':'Synthetic'}).json()['detail']=='Unable to create an account with those details'
@@ -213,3 +252,87 @@ def test_004_migration_preserves_all_legacy_tables_and_links(tmp_path):
             assert all(r[-1] is None for r in after)
         assert c.execute('PRAGMA foreign_key_check').fetchall()==[]
         assert c.execute('SELECT COUNT(*) FROM users').fetchone()[0]==0
+
+@pytest.mark.parametrize('attacker_index',[0,1])
+def test_bidirectional_full_account_ownership_matrix(clients,attacker_index):
+    accounts=clients[:2];users=[register(c,f'matrix-{i}@example.test') for i,c in enumerate(accounts)]
+    payloads={
+        'episodes':{'date':'2026-10-19','severity':4},
+        'wellness':{'date':'2026-10-19','timezone_name':'Asia/Kolkata','stress':4},
+        'early-symptoms':{'symptom':'Synthetic','onset_at':'2026-10-19T00:00:00Z','timezone_name':'UTC'},
+        'contacts':{'name':'Synthetic contact','relationship':'Friend','phone':'+12025550100'}}
+    rows=[]
+    for index,c in enumerate(accounts):
+        data={resource:c.post('/api/'+resource,json=payload).json() for resource,payload in payloads.items()}
+        c.put('/api/profile',json={'name':f'Synthetic {index}','support':f'Private synthetic support {index}','avoid':''})
+        c.put('/api/support/preferences',json={'preferred_contact_id':data['contacts']['id'],'communication_method':'sms'})
+        data['session']=c.post('/api/attack-sessions/start').json();sid=data['session']['id']
+        c.post(f'/api/attack-sessions/{sid}/end')
+        data['feedback']=c.post('/api/support/feedback',json={'session_id':sid,'action_id':'support_card','helpful':True}).json()
+        data['consent']=c.post('/api/account/consents',json={'contact_id':data['contacts']['id'],'scope':'support_card','confirmed':True}).json()
+        rows.append(data)
+    c=accounts[attacker_index];victim=rows[1-attacker_index];own=rows[attacker_index]
+    for resource,payload in payloads.items():
+        assert [row['id'] for row in c.get('/api/'+resource).json()]==[own[resource]['id']]
+        assert c.put(f'/api/{resource}/{victim[resource]["id"]}',json=payload).status_code==404
+        assert c.delete(f'/api/{resource}/{victim[resource]["id"]}').status_code==404
+        assert c.post('/api/'+resource,json={**payload,'owner_id':users[1-attacker_index]['id']}).status_code==422
+    assert c.post(f'/api/attack-sessions/{victim["session"]["id"]}/end').status_code==404
+    assert [r['id'] for r in c.get('/api/attack-sessions').json()]==[own['session']['id']]
+    assert c.get('/api/attack-sessions/current').json()['id']==own['session']['id']
+    assert c.put('/api/episodes/'+str(own['episodes']['id']),json={**payloads['episodes'],'attack_session_id':victim['session']['id']}).status_code==422
+    assert c.put('/api/support/preferences',json={'preferred_contact_id':victim['contacts']['id']}).status_code==422
+    assert c.get('/api/support/preferences').json()['preferred_contact_id']==own['contacts']['id']
+    assert c.get('/api/support/recommendations').json()['contact_id']==own['contacts']['id']
+    assert c.post('/api/support/feedback',json={'session_id':victim['session']['id'],'action_id':'support_card','helpful':False}).status_code==404
+    assert c.delete('/api/support/feedback/'+str(victim['feedback']['id'])).status_code==404
+    assert [r['id'] for r in c.get('/api/support/feedback').json()]==[own['feedback']['id']]
+    assert c.delete('/api/account/consents/'+str(victim['consent']['id'])).status_code==404
+    assert c.post('/api/account/consents',json={'contact_id':victim['contacts']['id'],'scope':'support_card','confirmed':True}).status_code==404
+    assert [r['id'] for r in c.get('/api/account/consents').json()]==[own['consent']['id']]
+    snapshot=accounts[1-attacker_index].get('/api/export').json()
+    assert c.put('/api/profile',json={'name':'Own profile update','support':'Own support','avoid':''}).status_code==200
+    assert c.post('/api/support/preferences/reset').status_code==200
+    for query in ('',f'?owner_id={users[1-attacker_index]["id"]}',f'?user_id={users[1-attacker_index]["id"]}'):
+        exported=c.get('/api/export'+query).json()
+        for collection,key in [('episodes','episodes'),('wellness','wellness'),('early_symptoms','early-symptoms'),('contacts','contacts'),('attack_sessions','session'),('support_feedback','feedback'),('sharing_consents','consent')]:
+            assert [r['id'] for r in exported[collection]]==[own[key]['id']]
+        assert exported['account']['email']==users[attacker_index]['email']
+        assert len(exported['profiles'])==len(exported['support_preferences'])==1
+    assert c.get('/api/insights?as_of=2026-10-19').json()['episode_count']==1
+    after=accounts[1-attacker_index].get('/api/export').json()
+    for key in snapshot:
+        if key!='exported_at':assert after[key]==snapshot[key]
+
+def test_first_registration_and_deletion_do_not_claim_legacy_records(clients):
+    from app.main import Profile, Wellness, EarlySymptom, AttackSession, SupportPreferences, SupportFeedback
+    a,_,factory=clients
+    stamp='2026-10-19T00:00:00+00:00'
+    models=[Episode,Contact,Profile,Wellness,EarlySymptom,AttackSession,SupportPreferences,SupportFeedback]
+    with factory() as s:
+        s.add_all([Contact(id=1,name='Synthetic legacy contact',relationship='Friend',phone='+12025550100'),
+                   AttackSession(id=1,started_at=stamp,ended_at=stamp,active_slot=None)])
+        s.commit()
+        s.add_all([Episode(id=1,date='2026-10-19',severity=3,duration=0,trigger='Unknown',notes='Synthetic legacy',attack_session_id=1),
+                   Profile(id=1,name='Synthetic legacy profile'),Wellness(id=1,date='2026-10-19',timezone_name='UTC',recorded_at=stamp),
+                   EarlySymptom(id=1,symptom='Synthetic legacy symptom',onset_at=stamp,timezone_name='UTC',recorded_at=stamp),
+                   SupportPreferences(id=1,preferred_contact_id=1),SupportFeedback(id=1,session_id=1,action_id='support_card',helpful=True,created_at=stamp)])
+        s.commit()
+        before={m.__tablename__:{col.name:getattr(s.get(m,1),col.name) for col in m.__table__.columns} for m in models}
+    user=register(a);assert user['id']==1
+    for path in ('episodes','wellness','early-symptoms','contacts','attack-sessions','support/feedback'):
+        assert a.get('/api/'+path).json()==[]
+    assert a.get('/api/attack-sessions/current').json() is None
+    assert a.get('/api/profile').json()['id']!=1
+    assert a.get('/api/support/preferences').json()['preferred_contact_id'] is None
+    exported=a.get('/api/export').json()
+    for collection in ('episodes','wellness','early_symptoms','contacts','attack_sessions','support_feedback'):assert exported[collection]==[]
+    for path in ('episodes/1','wellness/1','early-symptoms/1','contacts/1','support/feedback/1'):
+        assert a.delete('/api/'+path).status_code==404
+    assert a.post('/api/attack-sessions/1/end').status_code==404
+    assert a.request('DELETE','/api/account',json={'password':PASSWORD,'confirmation':'DELETE'}).status_code==204
+    with factory() as s:
+        for model in models:
+            row=s.get(model,1)
+            assert row.owner_id is None
+            assert {col.name:getattr(row,col.name) for col in model.__table__.columns}==before[model.__tablename__]

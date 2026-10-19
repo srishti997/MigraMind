@@ -17,6 +17,10 @@ test('real local API: two accounts stay isolated; logout, consent and deletion w
   await pa.getByRole('button',{name:'Add contact',exact:true}).click();
   await pa.getByLabel('Name',{exact:true}).fill('Synthetic Alpha contact');await pa.getByLabel('Relationship',{exact:true}).fill('Friend');await pa.getByLabel('Phone number',{exact:true}).fill('+12025550100');await pa.getByRole('button',{name:'Save contact',exact:true}).click();
   await expect(pa.getByText('Synthetic Alpha contact',{exact:true})).toBeVisible();
+  const stale=await a.newPage();await stale.goto('/');
+  await expect(stale.getByRole('heading',{name:'A gentler day, Synthetic Alpha.'})).toBeVisible();
+  await stale.getByRole('navigation').getByRole('button',{name:'Trusted contacts',exact:true}).click();
+  await expect(stale.getByText('Synthetic Alpha contact',{exact:true})).toBeVisible();
   await pb.getByRole('navigation').getByRole('button',{name:'Trusted contacts',exact:true}).click();await expect(pb.getByText('Synthetic Alpha contact',{exact:true})).toHaveCount(0);
   for(const page of [pa,pb]){
    await page.getByRole('navigation').getByRole('button',{name:'Account',exact:true}).click();
@@ -25,6 +29,9 @@ test('real local API: two accounts stay isolated; logout, consent and deletion w
   }
   await pa.getByRole('checkbox').check();await pa.getByRole('button',{name:'Record consent (sharing disabled)'}).click();
   await expect(pa.getByText('Consent recorded. No information was shared.')).toBeVisible();await pa.getByRole('button',{name:'Revoke consent'}).click();await expect(pa.getByText(/Support card · Revoked/)).toBeVisible();
+  await pa.getByRole('button',{name:'Sign out',exact:true}).click();
+  await expect(stale.getByRole('button',{name:'Sign in',exact:true})).toBeVisible();
+  await expect(stale.getByText('Synthetic Alpha contact',{exact:true})).toHaveCount(0);
   await pb.getByRole('button',{name:'Sign out',exact:true}).click();await expect(pb.getByRole('button',{name:'Sign in',exact:true})).toBeVisible();expect(await pb.getByRole('navigation').count()).toBe(0);
   await pb.getByLabel('Email',{exact:true}).fill(records[1].email);await pb.getByLabel('Password',{exact:true}).fill(password);await pb.getByRole('button',{name:'Sign in',exact:true}).click();await expect(pb.getByRole('heading',{name:'A gentler day, Synthetic Beta.'})).toBeVisible();
   await pb.getByRole('button',{name:'Enter Attack Mode'}).click();await expect(pb.getByRole('link',{name:/Emergency call/})).toHaveAttribute('href','tel:112');await pb.getByRole('button',{name:'Exit Attack Mode'}).click();
