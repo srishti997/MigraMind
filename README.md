@@ -1,0 +1,193 @@
+# MigraMind
+
+Mobile-first migraine tracking and caregiver preferences. React + TypeScript + Vite + Tailwind CSS, FastAPI, SQLAlchemy, Alembic and PostgreSQL. All seeded records are synthetic. This is a single-user local prototype: do not host publicly or enter real health information without authentication, authorization and production security work.
+
+## Run locally (PowerShell)
+
+Start PostgreSQL using Docker Desktop:
+
+```powershell
+Copy-Item .env.example .env
+# Set a private POSTGRES_PASSWORD in the root .env before starting Docker.
+docker compose up -d
+cd backend
+python -m venv .venv
+./.venv/Scripts/python -m pip install -r requirements.txt
+Copy-Item .env.example .env
+# This template defaults to SQLite. For PostgreSQL, set DATABASE_URL in backend/.env
+# using your local database credentials before running migrations.
+./.venv/Scripts/python -m alembic upgrade head
+./.venv/Scripts/python seed.py
+./.venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-access-log
+```
+
+If Docker is unavailable, omit the environment copy: the default database is `backend/migramind.db` (SQLite). Or set `DATABASE_URL=sqlite:///./migramind.db` in `.env`. Run the same migration and seed commands. Seeding is explicit and only adds demo records to an empty episode store; never run it against a real health database.
+
+In a second terminal:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Open http://localhost:5173. API documentation: http://127.0.0.1:8000/docs. The Vite proxy routes `/api` to the backend. `frontend/.env.example` describes the optional API origin for separate hosting. CORS origins are configurable through `backend/.env`.
+
+## Verify
+
+```powershell
+cd frontend
+npm test
+npm run build
+cd ../backend
+./.venv/Scripts/python -m pytest -q
+```
+
+API tests use an isolated in-memory database and cover episode lifecycle, invalid input, contact updates/deletion and profile persistence. Frontend tests cover timezone-safe calendar dates and leap-year alignment.
+
+## Behavior and boundaries
+
+- Diary: add, read notes, edit and delete episodes. Calendar highlights records and filters entries by date. Overview calculates descriptive statistics from diary entries, not medical predictions.
+- Contacts: add, edit, delete and initiate calls with `tel:` links. Desktop dialing depends on an installed calling handler. Demo numbers must be replaced before use.
+- Caregiver profile: saved personal support preferences; viewable in Attack Mode. No automatic sharing or messaging.
+- Attack Mode: low-light colors, large controls, support preferences, and user-initiated calling. It does not dispatch emergency services or send SOS notifications.
+- No AI model or diagnostic/recommendation service is connected. No medical advice is generated.
+- Backend request access logs are disabled by the documented launch command. SQL logging is disabled. Do not log request bodies or add health details to telemetry. Infrastructure logging needs a separate review before production.
+- No authentication, multi-user isolation, encryption at rest, backup/retention tooling or production deployment is included. Bind to loopback for local use. Use production credentials and secure deployment before any real data use.
+- SQLite is the locally verified fallback; PostgreSQL configuration and migrations are provided. A working Docker daemon is required to verify PostgreSQL.
+
+## Structure
+
+`frontend/src/main.tsx`: UI and API client; `style.css`: responsive styles plus Tailwind import; `utils.ts`: calendar utilities. `backend/app/main.py`: validated APIs and SQLAlchemy models; `backend/alembic`: versioned schema; `backend/seed.py`: synthetic fixtures.
+## Verification in this workspace
+
+Production frontend build passed. Frontend tests: 2 passed. Backend tests: 3 passed (one upstream TestClient deprecation warning). SQLite migration and synthetic seeding succeeded. Live frontend HTTP, proxied API health, and create/read/delete smoke checks passed. npm audit reported zero vulnerabilities after updating Vitest. Browser rendering, assistive-technology behavior, actual phone dialing and PostgreSQL were not verified in this environment. No browser automation tool was available; Docker daemon was unavailable.
+
+## Appearance
+
+Choose **Warm Day** or **Gentle Dark** using the Appearance selector in the header or Settings. The preference is stored only on this device; Attack Mode temporarily uses its own dim palette. Opening the episode form during Attack Mode keeps that palette. Shared semantic tokens are centralized in `frontend/src/style.css`. The specified muted base color is retained, with a darker readable text token used to meet 4.5:1 contrast on warm backgrounds. Mobile navigation wraps, calendar columns shrink to available width, and reduced-motion preferences are respected.
+
+Redesign verification: production build, two frontend tests and three backend tests passed. Text palette contrast pairs were checked at 4.5:1 or higher. Updated frontend modules and existing proxied APIs returned HTTP 200. Actual browser layout, screen-reader behavior and device-specific dialing still require manual inspection.
+
+## Sprint 2: attack assistance
+
+Enter Attack Mode from the header. The dedicated dark view provides immediate Exit and India 112 emergency calling, trusted-contact selection, a user-initiated call link, and a prepared SMS link. SMS text is previewable before opening the device app. No delivery, dispatch or monitoring status is simulated. The platform-specific SMS body delimiter is covered by tests; actual iOS/Android app handoff remains a manual check. Do not place test calls to emergency numbers.
+
+The collapsible support card uses saved caregiver preferences (what helps, what to avoid, and communication preferences), available without another login prompt in this local prototype. Edit them through Caregiver profile and save. Empty contacts, loading failures and session API failures have distinct states; emergency calling remains available even if the API fails.
+
+Start/end tracking is explicit. Entering/leaving Attack Mode does not start/end a session. UTC ISO timestamps persist in the database. Repeated start requests return the existing active session, protected by a unique database slot; repeated end requests preserve the original end timestamp. Reloading the interface reads the persisted status. Sessions and diary entries remain separate; no episode is fabricated from a session.
+
+Additive migration `002` adds communication preferences and the attack_sessions table. Existing diary/contact/profile records are preserved. For an existing checkout, run from backend:
+
+```powershell
+./.venv/Scripts/python -m alembic upgrade head
+```
+
+Session API routes:
+
+- GET `/api/attack-sessions/current`: most recent session, active or ended, or null.
+- GET `/api/attack-sessions`: recorded session timestamps.
+- POST `/api/attack-sessions/start`: start or return the current active session.
+- POST `/api/attack-sessions/{id}/end`: explicitly end a session, idempotently.
+
+Emergency guidance sources: [India ERSS](https://112.gov.in/) and [NHS headache warning signs](https://www.nhs.uk/symptoms/headaches/). The interface offers access to urgent help without diagnosing symptoms or requiring AI approval. This prototype is not a medical device or monitored emergency service.
+
+### Sprint 2 verification
+
+Production build passed; 11 frontend tests, 7 backend tests and 2 Playwright browser tests passed. Tests cover contact selection/absence, support preferences, API failure, safe link targets, keyboard entry/exit and dialog focus, session persistence and idempotency, database duplicate prevention, and migration preservation. Browser checks covered all pages at 320/390/768/1280px, no horizontal overflow, large controls, urgent controls in the initial viewport, and reduced motion. No call/SMS links were activated.
+
+Run browser checks while the frontend is running:
+
+```powershell
+cd frontend
+npm run test:e2e
+```
+
+Playwright uses installed Windows Chrome by default. Set `MIGRAMIND_BROWSER` to another Chromium executable path if needed. Browser tests intercept API requests with synthetic fixtures; backend persistence is tested separately. Test screenshots/output are ignored by Git. Manual checks remain: iOS/Android SMS composer/dialer behavior, screen readers, real-device font scaling/landscape and comfort during use. PostgreSQL remains unverified without a Docker daemon. No authentication or multi-user security is added by this sprint.
+
+## Sprint 3: smart tracking and data foundation
+
+Sprint 2 was verified before changes: its existing 7 backend, 11 frontend and 2 browser tests passed. Attack Mode, contact/SMS links, saved support card, emergency access and persistent sessions remain available.
+
+### Try the new tracking experience
+
+Open http://127.0.0.1:5173/ and refresh:
+
+1. **Migraine diary → Log an episode**: only a start time is required for a new timed entry. Severity is optional and accepts 0–10. Expand **Optional details** to enter end time, pain location, symptoms, activity impact, observed factors, medication names/times, notes or an existing session link. Edit/delete controls and **View entry details** are available for each episode. Medication logging gives no recommendations.
+2. **Wellness → Daily check-in**: log any combination of sleep hours/quality, stress, hydration estimate, missed meals, screen hours or optional cycle observations. Blank stays unknown; zero and No are explicit values. One check-in per local date; edit the existing entry instead of duplicating it.
+3. **Early symptoms → Log early symptom**: save a symptom and onset time independently of migraine attacks. These records are not classified as proven prodromes or triggers.
+4. **Calendar**: dates mark episodes and wellness check-ins. Selecting a date lists all its episodes and check-in, with add/edit controls. Known episodes spanning midnight appear on each affected date; unknown ends are not extrapolated. Timed episodes are shown in your device timezone, while date-only legacy entries retain their recorded date.
+5. **Overview**: review recorded headache days, onset frequency, average reported severity and average known duration for the last 30 calendar days (today plus the previous 29). A chart and accessible data table use stored episode counts. No data, unknown measurements and zero recorded episodes are distinguished. Missing logs do not prove headache-free days. There are no causal or predictive claims.
+6. **Settings → Export my records (JSON)**: download a schema-versioned export of episodes, wellness, early symptoms, sessions, contacts and caregiver preferences. Keep the file private. Export occurs only after a user action.
+
+### Schema and time semantics
+
+Migration `003` preserves existing records, makes severity/duration nullable, and adds episode start/end timestamps, IANA timezone, pain location, symptom list, functional impact, optional medication observations and related-session ID. New tables `wellness` and `early_symptoms` keep daily exposures and potential early symptoms separate from episodes. Observation records retain their creation time; onset times are separate. Session links are validated against existing sessions and do not start/end them.
+
+New timestamp inputs require explicit offsets at the API boundary, normalize to UTC, and retain an IANA timezone. Browser inputs use the device timezone shown in the form. Existing exact timestamps are preserved when unchanged, including the repeated hour at a daylight-saving transition. Invalid/nonexistent local times are rejected. Legacy dates/durations have no fabricated precise start or end. Known start/end determine duration; otherwise a reported duration may be supplied or left unknown.
+
+Headache days are distinct local dates overlapped by entries with severity above zero; zero is a valid no-pain report, and unrated entries cannot establish headache days. An exact midnight endpoint does not add the following day. Entries with unknown end times count only their onset date. Frequency and averages use episode onset dates in the reporting window; known overlapping headache days may include an onset before the window. Severity averages exclude missing values and include explicit zeroes. Duration averages exclude unknown values. Wellness alone cannot establish an attack-free observation period.
+
+Run migrations before starting the updated backend:
+
+```powershell
+cd backend
+./.venv/Scripts/python -m alembic upgrade head
+```
+
+The automatic downgrade for migration 003 is intentionally disabled because converting unknown values back to mandatory measurements or dropping advanced data would lose information. Export and review data before any manual downgrade.
+
+Additional APIs:
+
+- GET/POST `/api/wellness`; PUT/DELETE `/api/wellness/{id}`.
+- GET/POST `/api/early-symptoms`; PUT/DELETE `/api/early-symptoms/{id}`.
+- GET `/api/insights?timezone_name=Asia%2FKolkata` (optional `as_of=YYYY-MM-DD` for a reproducible 30-day window).
+- GET `/api/export` returns downloadable JSON with no-store caching.
+- Existing `/api/episodes` POST/PUT accept advanced fields and continue to accept legacy date/severity/duration input.
+
+The application remains a single-user local prototype with no authentication or user ownership layer. Both servers bind to loopback; do not publicly expose the API or use real health records without production access controls. No AI predictions, diagnosis, medication recommendations or causal inference were added. No health payloads are written to application logs.
+
+### Final Sprint 3 validation
+
+Production build passed. Backend: 25 tests passed, with the existing upstream TestClient deprecation warning. Frontend: 16 tests passed. Browser: 4 tests passed, including all navigation pages at 320/390/768/1280px, keyboard/reduced-motion regression checks, synthetic tracking/calendar/export flows, and preservation of the later repeated-hour timestamp during daylight saving. A newly started attack session can be linked from the diary without reloading. Backend dependency checks passed. Live frontend/proxied APIs/export returned valid responses, and the local SQLite database is at migration 003. No real calls/messages were made and browser fixtures were synthetic. PostgreSQL and real-device screen-reader/dialer/SMS behavior remain unverified.
+
+## Sprint 4: forecasting research foundation
+
+The local data audit found no suitable real longitudinal training dataset. Application/demo records were not used for training. No public deployment or clinical forecasting claim was made, and the database remains at migration 003 without schema/data changes.
+
+- [Data audit and protocol](docs/FORECASTING_AUDIT.md): collected/missing fields, exact next-24-hour onset target, timezone/overlap/unknown handling, leakage barriers, sample gates and evaluation definitions.
+- [Experiment guide](docs/ML_EXPERIMENTS.md): private local input contract, read-only audit, preparation, optional offline fitting, dataset requirements and validation work still needed.
+- `backend/research/`: versioned snapshot/coverage contract, point-in-time features, purged chronological splits, training-only preprocessing, historical-frequency baseline, logistic regression, optional XGBoost adapter, metrics and local CLI.
+- `GET /api/v1/forecast`: explicit insufficient-data/model-unavailable contract with null probability and no model activation path. It never changes Attack Mode, contact actions, or emergency access.
+- **Overview → AI Insights — In Development**: quiet research explanation with no mock risk percentages, styled with existing theme tokens.
+
+Read-only audit from `backend`:
+
+```powershell
+./.venv/Scripts/python -m research.cli --audit-db --output-dir ../.research/local-audit
+```
+
+Only aggregate status/reporting is emitted; no feature rows or probabilities are printed. The current outcome is `insufficient_data`, `trained: false`, `model_served: false`. The optional ML dependencies are in `backend/requirements-ml.txt`; the tested environment is locked in `backend/requirements-ml.lock.txt`. XGBoost is absent and its adapter reports dependency unavailability. Synthetic model fits occur only inside automated tests and are not presented as research performance.
+
+All research inputs and sensitive derived outputs belong in ignored local `research-data/` or `.research/`, never a public site or repository. The application still lacks verified observation coverage and immutable historical snapshots, so a final diary export alone cannot support leakage-safe retrospective training. The guide describes prospective collection and review requirements rather than inventing clinical data or negative labels.
+
+Sprint 4 verification: **46 backend tests, 18 frontend tests and 4 browser tests passed**, as did the production build and dependency checks. The live versioned forecasting response reports insufficient data with null probability. Existing records and migration 003 are unchanged. Refresh http://127.0.0.1:5173/ and open Overview to inspect the research-status card. No application-data model training or public deployment occurred.
+
+## Sprint 5: adaptive support assistance
+
+See [the support implementation and verification guide](docs/ADAPTIVE_SUPPORT.md).
+
+- **Caregiver profile → Your support choices**: saved preferred contact/method, ordered support actions, accessibility settings, optional feedback use, fixed/adaptive ordering, and explicit reset.
+- **Attack Mode**: preference-first highlighted action, explainable feedback ordering for unpinned actions, stable alternatives and independent sticky emergency access. No automatic call/SMS dispatch.
+- **Saved support card**: explicit review/redaction before copy or native sharing. No automatic transmission or delivery claim.
+- **Support feedback**: optional after an ended session, skippable, reviewable and deletable. No feedback request during an active session or unknown session status.
+- **Offline evaluation**: task completion, interactions, preference alignment and recommendation-change summaries, separating simulated fixtures from real-study outcomes. No real-user performance claim.
+
+Migration **004** adds structured support choices and session/action feedback tables while preserving all existing records. From `backend`, run `./.venv/Scripts/python -m alembic upgrade head`. Existing schema-3 exports now include the two new collections additively. Forecasting remains unavailable and is not used for support ordering. The application is still a single-user local prototype.
+
+Final Sprint 5 verification: **56 backend tests, 29 frontend tests and all 6 browser tests passed**, along with the production build and Python dependency checks. Coverage includes existing forecasting research, diary/timezone regressions, preference loading/persistence/reset, feedback ordering/opt-in/CRUD, no active-session prompts, failed-session-status handling, sharing consent, 320px large-text layout, emergency visibility, keyboard focus and reduced motion. The native share/clipboard handlers were mocked; call/SMS links were inspected without activation. All live support/status/export APIs returned valid responses with no-store caching. The local SQLite database is at migration 004. Existing upstream TestClient deprecation warning remains.
+
+
+## Source repository hygiene
+
+Only source, tests, migrations, documentation, lockfiles and configuration templates belong in Git. Local environments, credentials, databases/journals, uploads, private exports, datasets, model artifacts, caches and editor files are ignored. `.env.example` files are safe placeholders; replace values only in ignored local `.env` files. Docker requires an explicitly configured local `POSTGRES_PASSWORD`. Do not force-add ignored files or publish local health records.

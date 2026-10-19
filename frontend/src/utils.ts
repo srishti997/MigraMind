@@ -1,0 +1,2 @@
+export const localDate=(d:Date)=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+export function monthCells(month:Date):(number|null)[]{const offset=(new Date(month.getFullYear(),month.getMonth(),1).getDay()+6)%7;return [...Array(offset).fill(null),...Array.from({length:new Date(month.getFullYear(),month.getMonth()+1,0).getDate()},(_,i)=>i+1)];}
