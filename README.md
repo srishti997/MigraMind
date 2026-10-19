@@ -1,6 +1,6 @@
 # MigraMind
 
-Mobile-first migraine tracking and caregiver preferences. React + TypeScript + Vite + Tailwind CSS, FastAPI, SQLAlchemy, Alembic and PostgreSQL. All seeded records are synthetic. This is a single-user local prototype: do not host publicly or enter real health information without authentication, authorization and production security work.
+Mobile-first migraine tracking and caregiver preferences. React + TypeScript + Vite + Tailwind CSS, FastAPI, SQLAlchemy, Alembic and PostgreSQL. All seeded records are synthetic. This is an account-isolated local prototype with cookie authentication. Do not host publicly or enter real health information before production security and privacy review. See [Sprint 6 authentication and privacy](docs/authentication-privacy.md) for current behavior and limitations; older sprint verification below is historical.
 
 ## Run locally (PowerShell)
 
@@ -17,11 +17,10 @@ Copy-Item .env.example .env
 # This template defaults to SQLite. For PostgreSQL, set DATABASE_URL in backend/.env
 # using your local database credentials before running migrations.
 ./.venv/Scripts/python -m alembic upgrade head
-./.venv/Scripts/python seed.py
 ./.venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-access-log
 ```
 
-If Docker is unavailable, omit the environment copy: the default database is `backend/migramind.db` (SQLite). Or set `DATABASE_URL=sqlite:///./migramind.db` in `.env`. Run the same migration and seed commands. Seeding is explicit and only adds demo records to an empty episode store; never run it against a real health database.
+If Docker is unavailable, omit the environment copy: the default database is `backend/migramind.db` (SQLite). Or set `DATABASE_URL=sqlite:///./migramind.db` in `.env`. Run the same migration command, then create an account in the browser. Do not seed for normal use: legacy seed records remain unassigned and are deliberately hidden from new accounts.
 
 In a second terminal:
 
@@ -53,7 +52,7 @@ API tests use an isolated in-memory database and cover episode lifecycle, invali
 - Attack Mode: low-light colors, large controls, support preferences, and user-initiated calling. It does not dispatch emergency services or send SOS notifications.
 - No AI model or diagnostic/recommendation service is connected. No medical advice is generated.
 - Backend request access logs are disabled by the documented launch command. SQL logging is disabled. Do not log request bodies or add health details to telemetry. Infrastructure logging needs a separate review before production.
-- No authentication, multi-user isolation, encryption at rest, backup/retention tooling or production deployment is included. Bind to loopback for local use. Use production credentials and secure deployment before any real data use.
+- Sprint 6 adds account authentication and server-side user isolation. Encryption at rest, managed backup/retention, account recovery, MFA and production deployment remain outstanding. Bind to loopback and use synthetic records only.
 - SQLite is the locally verified fallback; PostgreSQL configuration and migrations are provided. A working Docker daemon is required to verify PostgreSQL.
 
 ## Structure
@@ -145,7 +144,7 @@ Additional APIs:
 - GET `/api/export` returns downloadable JSON with no-store caching.
 - Existing `/api/episodes` POST/PUT accept advanced fields and continue to accept legacy date/severity/duration input.
 
-The application remains a single-user local prototype with no authentication or user ownership layer. Both servers bind to loopback; do not publicly expose the API or use real health records without production access controls. No AI predictions, diagnosis, medication recommendations or causal inference were added. No health payloads are written to application logs.
+At completion of Sprint 3, this was a single-user local prototype; Sprint 6 now adds authentication and ownership (see current guidance above). Both servers bind to loopback; do not publicly expose the API or use real health records without production access controls. No AI predictions, diagnosis, medication recommendations or causal inference were added. No health payloads are written to application logs.
 
 ### Final Sprint 3 validation
 
@@ -191,3 +190,15 @@ Final Sprint 5 verification: **56 backend tests, 29 frontend tests and all 6 bro
 ## Source repository hygiene
 
 Only source, tests, migrations, documentation, lockfiles and configuration templates belong in Git. Local environments, credentials, databases/journals, uploads, private exports, datasets, model artifacts, caches and editor files are ignored. `.env.example` files are safe placeholders; replace values only in ignored local `.env` files. Docker requires an explicitly configured local `POSTGRES_PASSWORD`. Do not force-add ignored files or publish local health records.
+
+## Sprint 6: accounts and health data privacy
+
+Registration/login/logout, Argon2id hashing, rotating HttpOnly cookie sessions, session-bound CSRF tokens and origin checks, authentication rate limits, and per-account CRUD/insights/export are implemented. **Account** contains display-name settings, sign-out, explicit/revocable future caregiver consent, and password-confirmed account deletion. **Settings** exports the current account's records, identity and consent history; no password hashes or sessions are exported. There are no public caregiver links or automatic sharing actions.
+
+Migration **005** preserves old records with **unassigned ownership**. New accounts cannot view or claim them; account deletion leaves them intact. Back up privately before migrating and never commit a database or export. Warm Day, Gentle Dark and Attack Mode remain available. Emergency calling is user-initiated and available even at sign-in.
+
+Preview: **http://127.0.0.1:5173**. To test isolation, register synthetic A in a normal browser and B in a separate browser profile/incognito window; ordinary tabs share cookies. Add records to A, verify B stays empty, export each account, then delete B with its password and `DELETE`. See [full architecture, migration safety, configuration and test instructions](docs/authentication-privacy.md).
+
+No public deployment or production-grade security claim. PostgreSQL, real-device telephony, screen readers and independent security review remain unverified. See the privacy document for the full list of limitations. No commit or push is performed as part of Sprint 6.
+
+Sprint 6 verification: **66 backend tests, 32 frontend unit tests and 7 browser tests passed**; production build and Python dependency check passed. SQLite migration 005 preserved all eight legacy tables against a private pre-migration backup. The seven browser tests include two real synthetic accounts with cleanup; no phone/SMS actions were activated. One existing upstream TestClient deprecation warning remains.

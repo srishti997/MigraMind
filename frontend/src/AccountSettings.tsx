@@ -1,0 +1,19 @@
+import {useEffect,useState} from 'react';
+import {api} from './api';
+import type {Account} from './Authentication';
+export function AccountSettings({account,onChange,onLogout,onDeleted}:{account:Account,onChange:(u:Account)=>void,onLogout:()=>Promise<void>,onDeleted:()=>void}){
+ const [name,setName]=useState(account.display_name),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
+ const [contacts,setContacts]=useState<{id:number,name:string}[]>([]),[consents,setConsents]=useState<{id:number,contact_id:number|null,scope:string,revoked_at:string|null}[]>([]);
+ const load=async()=>{try{const [c,s]=await Promise.all([api('contacts'),api('account/consents')]);setContacts(c);setConsents(s)}catch(e){setError((e as Error).message)}};
+ useEffect(()=>{load()},[]);
+ const perform=async(action:()=>Promise<void>)=>{setBusy(true);setError('');setNotice('');try{await action()}catch(e){setError((e as Error).message)}finally{setBusy(false)}};
+ return <section className="panel profile"><h2>Your account & privacy</h2><p>{account.email}</p><p className="helper">Local prototype with account isolation. Keep this device private; database files and exports are not encrypted.</p>
+ <form onSubmit={e=>{e.preventDefault();perform(async()=>{onChange(await api('account','PUT',{display_name:name}));setNotice('Account updated.')})}}><label>Account display name<input value={name} required maxLength={100} onChange={e=>setName(e.target.value)}/></label><button className="primary" disabled={busy}>Save account</button></form>
+ <button className="secondary" disabled={busy} onClick={()=>perform(onLogout)}>Sign out</button>
+ <hr/><h3>Future caregiver sharing consent</h3><p>No caregiver access or public links are enabled. Recording consent sends nothing. You can revoke it here. Manual support-card sharing always requires your action.</p>
+ {contacts.length?<form onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);perform(async()=>{await api('account/consents','POST',{contact_id:Number(f.get('contact_id')),scope:'support_card',confirmed:f.has('confirmed')});await load();setNotice('Consent recorded. No information was shared.')})}}><label>Caregiver contact<select name="contact_id">{contacts.map(c=><option value={c.id} key={c.id}>{c.name}</option>)}</select></label><label className="consent-check"><input name="confirmed" type="checkbox" required/>I explicitly consent to future support-card sharing with this contact.</label><button className="secondary" disabled={busy}>Record consent (sharing disabled)</button></form>:<p>Add a trusted contact before recording consent.</p>}
+ <ul>{consents.map(c=><li key={c.id}>{contacts.find(x=>x.id===c.contact_id)?.name||'Removed contact'} · Support card · {c.revoked_at?'Revoked':<button className="secondary" disabled={busy} onClick={()=>perform(async()=>{await api(`account/consents/${c.id}`,'DELETE');await load()})}>Revoke consent</button>}</li>)}</ul>
+ <hr/><h3>Delete your account</h3><p>This permanently removes this account and its records and signs out every session. It does not remove old unassigned local records or files you previously exported. Download your records in Settings first.</p>
+ <form onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);perform(async()=>{await api('account','DELETE',{password:f.get('password'),confirmation:f.get('confirmation')});onDeleted()})}}><label>Current password<input type="password" name="password" autoComplete="current-password" required maxLength={128}/></label><label>Type DELETE to confirm<input name="confirmation" autoComplete="off" pattern="DELETE" required/></label><button className="danger" disabled={busy}>Permanently delete my account</button></form>
+ {error&&<p role="alert" className="error">{error}</p>}{notice&&<p role="status">{notice}</p>}</section>
+}
