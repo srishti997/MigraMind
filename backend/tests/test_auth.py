@@ -29,6 +29,23 @@ def register(c,email='a@example.test'):
     assert r.status_code==201
     c.headers['X-CSRF-Token']=r.json()['csrf_token'];return r.json()['user']
 
+def test_caregiver_guide_and_sos_choices_are_private_per_account(clients):
+    a,b,_=clients;register(a);register(b,'caregiver-b@example.test')
+    profile={'name':'Synthetic A','support':'Synthetic assistance A','avoid':'Synthetic avoid A','communication':'Synthetic communication A','environment':'Synthetic environment A'}
+    assert a.put('/api/profile',json=profile).status_code==200
+    assert a.put('/api/support/preferences',json={'help_message':'Synthetic A private message','emergency_number':'999'}).status_code==200
+    assert b.get('/api/profile').json()['environment']==''
+    assert b.get('/api/support/preferences').json()['emergency_number']=='112'
+    b.put('/api/profile',json={**profile,'environment':'Synthetic environment B'})
+    assert a.get('/api/profile').json()['environment']=='Synthetic environment A'
+    b.put('/api/support/preferences',json={'help_message':'Synthetic B message'})
+    assert a.get('/api/support/preferences').json()['help_message']=='Synthetic A private message'
+    exported=b.get('/api/export').text
+    assert 'Synthetic A private message' not in exported and 'Synthetic environment A' not in exported
+    for path in ('/api/profile','/api/support/preferences'):
+        assert b.get(path,headers={'X-CSRF-Token':''}).status_code==401
+    assert b.get('/api/caregiver-guide/public').status_code==404
+
 def login(c,email='a@example.test',password=PASSWORD):
     c.headers['X-CSRF-Token']=c.get('/api/auth/session').json()['csrf_token']
     r=c.post('/api/auth/login',json={'email':email,'password':password})
@@ -243,13 +260,14 @@ def test_004_migration_preserves_all_legacy_tables_and_links(tmp_path):
         c.execute("INSERT INTO support_preferences(id,preferred_contact_id) VALUES(1,1)")
         c.execute("INSERT INTO support_feedback VALUES(1,1,'support_card',1,'2026-10-19T01:00:00+00:00')")
         tables=['episodes','wellness','early_symptoms','contacts','profiles','attack_sessions','support_preferences','support_feedback']
+        columns={t:[r[1] for r in c.execute('PRAGMA table_info('+t+')')] for t in tables}
         before={t:c.execute('SELECT * FROM '+t).fetchall() for t in tables}
     upgrade('head')
     with sqlite3.connect(path) as c:
         for table in tables:
-            after=c.execute('SELECT * FROM '+table).fetchall()
-            assert [r[:-1] for r in after]==before[table]
-            assert all(r[-1] is None for r in after)
+            after=c.execute('SELECT '+','.join(columns[table])+' FROM '+table).fetchall()
+            assert after==before[table]
+            assert all(r[0] is None for r in c.execute('SELECT owner_id FROM '+table))
         assert c.execute('PRAGMA foreign_key_check').fetchall()==[]
         assert c.execute('SELECT COUNT(*) FROM users').fetchone()[0]==0
 

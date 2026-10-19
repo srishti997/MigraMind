@@ -30,6 +30,52 @@ def test_episode_lifecycle(client):
     assert client.delete(f'/api/episodes/{id}').status_code==204
     assert client.get('/api/episodes').json()==[]
     assert client.delete(f'/api/episodes/{id}').status_code==404
+
+def test_sos_preferences_persist_and_old_clients_preserve_new_fields(client):
+    values={'help_message':'Synthetic: please text before visiting.','emergency_number':'999'}
+    assert client.put('/api/support/preferences',json=values).status_code==200
+    saved=client.get('/api/support/preferences').json()
+    for key,value in values.items():assert saved[key]==value
+    assert client.put('/api/support/preferences',json={'communication_method':'sms'}).status_code==200
+    saved=client.get('/api/support/preferences').json()
+    for key,value in values.items():assert saved[key]==value
+    p={'name':'Synthetic','support':'Ask first','avoid':'Noise','communication':'Text','environment':'Synthetic chosen environment'}
+    assert client.put('/api/profile',json=p).status_code==200
+    client.put('/api/profile',json={k:v for k,v in p.items() if k!='environment'})
+    assert client.get('/api/profile').json()['environment']==p['environment']
+    exported=client.get('/api/export').json()
+    assert exported['profiles'][0]['environment']==p['environment']
+    assert exported['support_preferences'][0]['help_message']==values['help_message']
+    assert 'location' not in exported['support_preferences'][0]
+    reset=client.post('/api/support/preferences/reset').json()
+    assert reset['emergency_number']=='112' and reset['help_message']!=values['help_message']
+
+@pytest.mark.parametrize('value',[{'emergency_number':'tel:112'},{'emergency_number':'1'},{'emergency_number':'1234567'},
+    {'help_message':''},{'help_message':'x'*401},{'location':{'latitude':12.34,'longitude':56.78}}])
+def test_sos_validation_and_no_location_storage(client,value):
+    assert client.put('/api/support/preferences',json=value).status_code==422
+
+def test_006_migration_preserves_owned_and_unassigned_preferences(tmp_path):
+    import os,subprocess,sys,sqlite3
+    from pathlib import Path
+    path=tmp_path/'sos-migration.db';cwd=Path(__file__).resolve().parents[1]
+    env={**os.environ,'DATABASE_URL':f'sqlite:///{path.as_posix()}'}
+    def upgrade(version):subprocess.run([sys.executable,'-m','alembic','upgrade',version],cwd=cwd,env=env,check=True,capture_output=True)
+    upgrade('005')
+    with sqlite3.connect(path) as c:
+        c.execute("INSERT INTO users VALUES(1,'synthetic@example.test','Synthetic','synthetic-not-a-real-hash','2026-10-19T00:00:00Z')")
+        c.execute("INSERT INTO profiles(id,name,support,avoid,communication,owner_id) VALUES(1,'Synthetic legacy','Ask first','Noise','Text',NULL),(2,'Synthetic owner','Ask me','Fragrance','Text first',1)")
+        c.execute('INSERT INTO support_preferences(id,owner_id) VALUES(1,NULL),(2,1)')
+        c.execute("INSERT INTO attack_sessions(id,started_at,ended_at,active_slot,owner_id) VALUES(1,'2026-10-19T00:00:00Z',NULL,1,1)")
+        before=c.execute('SELECT id,name,support,avoid,communication,owner_id FROM profiles ORDER BY id').fetchall()
+    upgrade('head')
+    with sqlite3.connect(path) as c:
+        assert c.execute('SELECT id,name,support,avoid,communication,owner_id FROM profiles ORDER BY id').fetchall()==before
+        assert c.execute('SELECT environment FROM profiles').fetchall()==[('',),('',)]
+        assert c.execute('SELECT owner_id,emergency_number FROM support_preferences ORDER BY id').fetchall()==[(None,'112'),(1,'112')]
+        assert all(row[0] for row in c.execute('SELECT help_message FROM support_preferences'))
+        assert c.execute('SELECT owner_id,active_slot,ended_at FROM attack_sessions').fetchone()==(1,1,None)
+        assert c.execute('PRAGMA foreign_key_check').fetchall()==[]
 def test_validation(client):
     assert client.post('/api/episodes',json={'date':'bad','severity':11,'duration':-1}).status_code==422
 def test_support(client):
