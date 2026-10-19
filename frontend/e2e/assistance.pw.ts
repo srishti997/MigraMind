@@ -4,7 +4,8 @@ const profile={name:'Alex',support:'Quiet space. '+ 'Synthetic support preferenc
 test.beforeEach(async({page})=>{
  await page.route('**/api/**',route=>{
   const path=new URL(route.request().url()).pathname;
-  const data=path.endsWith('/contacts')?contacts:path.endsWith('/profile')?profile:path.endsWith('/episodes')?[]:path.endsWith('/v1/forecast')?{status:'insufficient_data',probability:null,clinically_validated:false}:null;
+  let data=path.endsWith('/contacts')?contacts:path.endsWith('/profile')?profile:path.endsWith('/episodes')?[]:path.endsWith('/v1/forecast')?{status:'insufficient_data',probability:null,clinically_validated:false}:null;
+  if(path==='/api/auth/session')data={user:{id:1,email:'synthetic@example.test',display_name:'Alex'},csrf_token:'synthetic-test-csrf'};
   return route.fulfill({json:data});
  });
 });

@@ -388,3 +388,6 @@ th, td { text-align: left; padding: 10px; border-bottom: 1px solid var(--border)
  .assistance .attack-heading { padding-top: 8px; }
 }
 .assistance :where(button,a,input,select,summary,textarea) { scroll-margin-block-start: 240px; scroll-margin-block-end: 24px; }
+
+.auth-shell{min-height:100dvh;display:grid;place-items:center;padding:clamp(16px,4vw,48px)}
+.auth-panel{width:100%;max-width:480px;min-width:0}.auth-panel form,.profile form{display:grid;gap:16px}.auth-panel h1{font-size:2rem}.auth-panel button{min-height:48px}.auth-panel p{overflow-wrap:anywhere}.consent-check{display:flex;align-items:flex-start;gap:12px}.consent-check input{width:24px;min-width:24px;height:24px}.profile hr{margin:28px 0;border-color:var(--border)}.profile ul{padding-left:20px}.danger{background:var(--danger);color:var(--on-danger);padding:16px;border-radius:var(--radius-sm);min-height:48px}

@@ -12,7 +12,15 @@ def client():
     def override():
         with factory() as s: yield s
     app.dependency_overrides[db]=override
-    with TestClient(app) as c: yield c
+    from app.main import auth
+    auth.limiter.clear()
+    with TestClient(app, headers={'Origin':'http://localhost:5173'}) as c:
+        c.headers['X-CSRF-Token']=c.get('/api/auth/session').json()['csrf_token']
+        registered=c.post('/api/auth/register',json={'email':'fixture@example.test','password':'Synthetic-password-123','display_name':'Demo'})
+        assert registered.status_code==201
+        c.headers['X-CSRF-Token']=registered.json()['csrf_token']
+        c.user_id=registered.json()['user']['id']
+        yield c
     app.dependency_overrides.clear()
 def test_episode_lifecycle(client):
     data={'date':'2026-10-19','severity':5,'duration':90,'trigger':'Stress','notes':'Synthetic'}
@@ -70,7 +78,7 @@ def test_database_prevents_duplicate_active_sessions(client):
     generator=client.app.dependency_overrides[db]()
     s=next(generator)
     try:
-        s.add(AttackSession(started_at='2026-10-19T12:00:00+00:00',active_slot=1))
+        s.add(AttackSession(owner_id=client.user_id,started_at='2026-10-19T12:00:00+00:00',active_slot=1))
         try:
             s.commit()
             assert False, 'Database must reject duplicate active session'
@@ -98,6 +106,8 @@ def test_additive_migration_preserves_existing_data(tmp_path):
     with sqlite3.connect(database) as connection:
         assert connection.execute('SELECT support, communication FROM profiles').fetchone() == ('Quiet','')
         assert connection.execute('SELECT COUNT(*) FROM episodes').fetchone()[0] == 1
+        assert connection.execute('SELECT owner_id FROM episodes').fetchone()[0] is None
+        assert connection.execute('SELECT COUNT(*) FROM users').fetchone()[0] == 0
         assert connection.execute('SELECT COUNT(*) FROM contacts').fetchone()[0] == 1
         assert connection.execute('SELECT COUNT(*) FROM attack_sessions').fetchone()[0] == 0
 
@@ -196,7 +206,7 @@ def test_export_preserves_unknown_values_and_all_record_types(client):
     client.post('/api/attack-sessions/start')
     r=client.get('/api/export');assert r.status_code==200
     assert r.headers['cache-control']=='no-store' and 'attachment' in r.headers['content-disposition']
-    data=r.json();assert data['schema_version']==3
+    data=r.json();assert data['schema_version']==4
     for key in ['episodes','wellness','early_symptoms','attack_sessions']: assert len(data[key])==1
     assert data['wellness'][0]['sleep_hours'] is None
     assert data['episodes'][0]['medications'][0]['name']=='Synthetic medication'

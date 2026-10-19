@@ -22,6 +22,7 @@ test.beforeEach(async({page})=>{
   if(/\/attack-sessions\/\d+\/end$/.test(path)){const id=Number(path.split('/')[3]);const row=sessions.find(s=>s.id===id);row.ended_at='2026-10-19T13:00:00Z';data=row;}
   if(path==='/api/support/feedback'){if(method==='POST')feedback.unshift({id:feedback.length+1,...request.postDataJSON(),created_at:'2026-10-19T14:00:00Z'});data=method==='POST'?feedback[0]:feedback;}
   if(method==='DELETE'&&path.startsWith('/api/support/feedback/')){feedback=feedback.filter(f=>f.id!==Number(path.split('/')[4]));return route.fulfill({status:204})}
+  if(path==='/api/auth/session')data={user:{id:1,email:'synthetic@example.test',display_name:'Alex'},csrf_token:'synthetic-test-csrf'};
   return route.fulfill({json:data});
  });
 });

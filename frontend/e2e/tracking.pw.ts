@@ -16,6 +16,7 @@ test('tracking forms, calendar and export use synthetic records',async({page})=>
    else data=records;
   }
   if(path==='/api/export')data={schema_version:3,episodes,wellness,early_symptoms:early};
+  if(path==='/api/auth/session')data={user:{id:1,email:'synthetic@example.test',display_name:'Alex'},csrf_token:'synthetic-test-csrf'};
   return route.fulfill({json:data});
  });
  await page.goto('/');await page.getByRole('navigation').getByRole('button',{name:'Migraine diary',exact:true}).click();
@@ -60,7 +61,8 @@ test.describe('daylight saving timestamp preservation',()=>{
    if(path==='/api/episodes')data=[row];
    if(path==='/api/episodes/1'){updated=route.request().postDataJSON();data={...updated,id:1}}
    if(path==='/api/insights')data=null;
-   return route.fulfill({json:data});
+   if(path==='/api/auth/session')data={user:{id:1,email:'synthetic@example.test',display_name:'Alex'},csrf_token:'synthetic-test-csrf'};
+  return route.fulfill({json:data});
   });
   await page.goto('/');await page.getByRole('navigation').getByRole('button',{name:'Migraine diary',exact:true}).click();await page.getByRole('button',{name:'Edit episode'}).click();
   await expect(page.getByLabel('Attack started',{exact:true})).toHaveValue('2026-11-01T01:30');
