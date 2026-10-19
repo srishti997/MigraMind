@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from fastapi import Depends, HTTPException, Query
 from sqlalchemy.exc import IntegrityError
 from .support_engine import recommend
+from .assistance_defaults import DEFAULT_HELP_MESSAGE
 Action=Literal['call_contact','prepare_sms','support_card']
 class PreferencesIn(BaseModel):
     model_config=ConfigDict(extra='forbid')
@@ -16,6 +17,8 @@ class PreferencesIn(BaseModel):
     simplified_view: bool=False
     use_feedback: bool=False
     ranking_mode: Literal['adaptive','fixed']='adaptive'
+    help_message: str=Field(default=DEFAULT_HELP_MESSAGE,min_length=1,max_length=400)
+    emergency_number: str=Field(default='112',pattern=r'^[0-9]{2,6}$')
     @model_validator(mode='after')
     def unique(self):
         if len(set(self.preferred_actions))!=len(self.preferred_actions):raise ValueError('Support actions must be unique')
@@ -41,7 +44,10 @@ def register_support(app,db,Contact,AttackSession,Preferences,Feedback,require_u
     def save_preferences(data:PreferencesIn,s=Depends(db),user=Depends(require_user)):
         if data.preferred_contact_id is not None and not owned(s,Contact,user).filter_by(id=data.preferred_contact_id).first():raise HTTPException(422,'Choose an existing trusted contact')
         row=prefs(s,user)
-        for k,v in data.model_dump().items():setattr(row,k,v)
+        for k,v in data.model_dump().items():
+            # Older clients must not reset these newly introduced settings.
+            if k in ('help_message','emergency_number') and k not in data.model_fields_set:continue
+            setattr(row,k,v)
         s.commit();s.refresh(row);return row
     @app.post('/api/support/preferences/reset')
     def reset_preferences(s=Depends(db),user=Depends(require_user)):

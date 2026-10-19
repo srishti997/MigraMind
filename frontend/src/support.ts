@@ -1,9 +1,10 @@
+import {supportMessage} from './assistance';
 import type {TrustedContact} from './assistance';
 export const ACTIONS=['call_contact','prepare_sms','support_card'] as const;
 export type SupportAction=typeof ACTIONS[number];
 export const ACTION_LABELS:Record<SupportAction,string>={call_contact:'Call contact',prepare_sms:'Prepare SMS',support_card:'Open my support card'};
-export type SupportPreferences={preferred_contact_id:number|null,communication_method:'none'|'call'|'sms',preferred_actions:SupportAction[],large_text:boolean,reduce_motion:boolean,simplified_view:boolean,use_feedback:boolean,ranking_mode:'adaptive'|'fixed'};
-export const DEFAULT_PREFERENCES:SupportPreferences={preferred_contact_id:null,communication_method:'none',preferred_actions:[],large_text:false,reduce_motion:false,simplified_view:false,use_feedback:false,ranking_mode:'adaptive'};
+export type SupportPreferences={preferred_contact_id:number|null,communication_method:'none'|'call'|'sms',preferred_actions:SupportAction[],large_text:boolean,reduce_motion:boolean,simplified_view:boolean,use_feedback:boolean,ranking_mode:'adaptive'|'fixed',help_message:string,emergency_number:string};
+export const DEFAULT_PREFERENCES:SupportPreferences={preferred_contact_id:null,communication_method:'none',preferred_actions:[],large_text:false,reduce_motion:false,simplified_view:false,use_feedback:false,ranking_mode:'adaptive',help_message:supportMessage,emergency_number:'112'};
 export function normalizePreferences(raw?:Partial<SupportPreferences>|null):SupportPreferences{return Object.fromEntries(Object.keys(DEFAULT_PREFERENCES).map(key=>[key,raw?.[key as keyof SupportPreferences]??DEFAULT_PREFERENCES[key as keyof SupportPreferences]])) as SupportPreferences}
 export type Recommendation={id:SupportAction,label:string,available:boolean,explanation:string,feedback_count:number};
 export type RecommendationResponse={algorithm_version:string,contact_id?:number|null,actions:Recommendation[],recommended_action:SupportAction|null};

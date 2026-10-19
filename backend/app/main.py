@@ -2,6 +2,7 @@ from datetime import date, datetime, timezone
 from typing import Literal
 import os
 from dotenv import load_dotenv
+from .assistance_defaults import DEFAULT_HELP_MESSAGE
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ConfigDict
@@ -94,6 +95,7 @@ class Profile(Owned, Base):
     support: Mapped[str] = mapped_column(Text, default='Please keep the room quiet and dim. Ask before calling or visiting.')
     avoid: Mapped[str] = mapped_column(Text, default='Bright lights, strong fragrances, and loud sounds.')
     communication: Mapped[str] = mapped_column(Text, default='')
+    environment: Mapped[str] = mapped_column(Text, default='')
 class AttackSession(Owned, Base):
     __tablename__ = 'attack_sessions'
     __table_args__ = (CheckConstraint('(ended_at IS NULL AND active_slot = 1) OR (ended_at IS NOT NULL AND active_slot IS NULL)', name='session_state'), UniqueConstraint('owner_id','active_slot',name='session_owner_active'))
@@ -113,6 +115,8 @@ class SupportPreferences(Owned, Base):
     simplified_view: Mapped[bool] = mapped_column(Boolean, default=False)
     use_feedback: Mapped[bool] = mapped_column(Boolean, default=False)
     ranking_mode: Mapped[str] = mapped_column(String(20), default='adaptive')
+    help_message: Mapped[str] = mapped_column(String(400), default=DEFAULT_HELP_MESSAGE)
+    emergency_number: Mapped[str] = mapped_column(String(6), default='112')
 class SupportFeedback(Owned, Base):
     __tablename__ = 'support_feedback'
     __table_args__ = (UniqueConstraint('session_id','action_id',name='one_rating_per_session_action'),
@@ -134,6 +138,7 @@ class ProfileIn(BaseModel):
     support: str = Field(max_length=3000)
     avoid: str = Field(max_length=3000)
     communication: str = Field(default='', max_length=3000)
+    environment: str = Field(default='', max_length=2000)
 def db():
     with SessionLocal() as session: yield session
 app = FastAPI(title='MigraMind API', description='Account-isolated local prototype. Not production hardened. No emergency dispatch.')
