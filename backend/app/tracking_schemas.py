@@ -1,5 +1,6 @@
 from datetime import date as Date, datetime, timezone
 from typing import Annotated
+from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pydantic import BaseModel, Field, AwareDatetime, field_validator, model_validator, ConfigDict
 
@@ -60,6 +61,7 @@ class WellnessIn(BaseModel):
     missed_meals: bool | None = None
     screen_hours: float | None = Field(default=None, ge=0, le=24, allow_inf_nan=False)
     menstrual_notes: str | None = Field(default=None, max_length=1000)
+    episode_observation: Literal['episode','no_episode'] | None = None
     _zone=field_validator('timezone_name')(valid_zone)
 class EarlySymptomIn(BaseModel):
     model_config = ConfigDict(extra='forbid')

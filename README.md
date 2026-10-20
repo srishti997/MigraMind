@@ -202,3 +202,13 @@ Preview: **http://127.0.0.1:5173**. To test isolation, register synthetic A in a
 No public deployment or production-grade security claim. PostgreSQL, real-device telephony, screen readers and independent security review remain unverified. See the privacy document for the full list of limitations. No commit or push is performed as part of Sprint 6.
 
 Sprint 6 verification: **66 backend tests, 32 frontend unit tests and 7 browser tests passed**; production build and Python dependency check passed. SQLite migration 005 preserved all eight legacy tables against a private pre-migration backup. The seven browser tests include two real synthetic accounts with cleanup; no phone/SMS actions were activated. One existing upstream TestClient deprecation warning remains.
+
+## Sprint 8: personalized descriptive pattern insights
+
+Open **Insights** for account-specific recorded onset charts, data-sufficiency indicators, missing-data warnings, wellness summaries, explicit comparison denominators, and separate symptom/attack timestamp tables. Warm Day/Gentle Dark themes and accessible Attack Mode are preserved. No forecasting, diagnosis, causal claims or medication recommendations are added.
+
+Migration **007** adds an optional whole-day episode observation and its server confirmation timestamp to wellness records. Old rows remain unknown; missing diary/check-in dates never become episode-free days. Only completed, explicitly confirmed episode-free observations can enter supported comparisons. Daily wellness recording time is never presented as exposure onset time. Back up privately, then run `./.venv/Scripts/python -m alembic upgrade head` from `backend`.
+
+See [pattern-insights methods, exclusions and manual verification](docs/PATTERN_INSIGHTS.md). The authenticated endpoint is `/api/pattern-insights`; it requires the existing session-bound header on reads. Charts have accessible tables/text, comparisons require at least three values per group as an engineering display safeguard, and sparse groups show **Not enough information yet**. All results remain descriptive and limited by retrospective reporting and missing data.
+
+Sprint 8 verification: **97 backend tests and 49 frontend tests passed; 12 Playwright tests passed in the preceding browser verification**; production build passed. Tests use synthetic fixtures, including a real local API check with two temporary accounts. SQLite migration 007 preserved existing values and ownership against a private backup. One upstream TestClient deprecation warning remains. PostgreSQL, screen-reader/device comfort, large-history performance and real-world data quality remain unverified; no clinical validation is claimed. Preview at **http://127.0.0.1:5173** after signing in and choosing Insights.

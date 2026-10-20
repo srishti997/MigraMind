@@ -1,7 +1,7 @@
 import {localDate} from './utils';
 export type Medication={name:string,taken_at:string};
 export type Episode={id:number,date:string,severity:number|null,duration:number|null,trigger:string,notes:string,started_at?:string|null,ended_at?:string|null,timezone_name?:string|null,pain_location?:string,symptoms?:string[],functional_impact?:string,medications?:Medication[],attack_session_id?:number|null};
-export type Wellness={id:number,date:string,timezone_name:string,recorded_at:string,sleep_hours:number|null,sleep_quality:number|null,stress:number|null,hydration_ml:number|null,missed_meals:boolean|null,screen_hours:number|null,menstrual_notes:string|null};
+export type Wellness={id:number,date:string,timezone_name:string,recorded_at:string,sleep_hours:number|null,sleep_quality:number|null,stress:number|null,hydration_ml:number|null,missed_meals:boolean|null,screen_hours:number|null,menstrual_notes:string|null,episode_observation?:'episode'|'no_episode'|null,observation_recorded_at?:string|null};
 export type Early={id:number,symptom:string,onset_at:string,timezone_name:string,notes:string};
 export type Insights={data_status:string,headache_days:number|null,episode_count:number|null,average_severity:number|null,average_duration_minutes:number|null,severity_count:number,duration_count:number,wellness_days:number,daily:{date:string,episodes:number,headache_reported:boolean}[],limitations:string};
 export const deviceZone=()=>Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';
