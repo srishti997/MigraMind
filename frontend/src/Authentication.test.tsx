@@ -6,7 +6,7 @@ import {Authentication} from './Authentication';
 import {AccountSettings} from './AccountSettings';
 import {clearAuthentication} from './api';
 vi.mock('./main',()=>({App:()=> <div>Private workspace</div>}));
-afterEach(()=>{cleanup();vi.useRealTimers();vi.restoreAllMocks();clearAuthentication()});
+afterEach(()=>{cleanup();vi.useRealTimers();vi.restoreAllMocks();vi.unstubAllGlobals();clearAuthentication()});
 const account={id:1,email:'synthetic@example.test',display_name:'Synthetic',created_at:'2026-10-19T00:00:00Z'};
 test('sign-in keeps health screens gated and emergency calling directly accessible',async()=>{
  const fetcher=vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify({user:null,csrf_token:'test-csrf'})));
@@ -52,4 +52,12 @@ test('account deletion requires password and typed confirmation; consent require
  fireEvent.click(checkbox);fireEvent.click(screen.getByRole('button',{name:'Record consent (sharing disabled)'}));
  await waitFor(()=>expect(fetcher.mock.calls.some(([path,options])=>String(path).endsWith('account/consents')&&options?.method==='POST')).toBe(true));
  expect(onDeleted).not.toHaveBeenCalled();
+});
+
+
+test('blocked cross-tab messaging does not blank an authenticated workspace',async()=>{
+ vi.stubGlobal('BroadcastChannel',class {constructor(){throw new DOMException('Blocked by browser policy','SecurityError')}});
+ vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify({user:account,csrf_token:'test-csrf'})));
+ render(<Authentication/>);
+ expect(await screen.findByText('Private workspace')).toBeVisible();
 });

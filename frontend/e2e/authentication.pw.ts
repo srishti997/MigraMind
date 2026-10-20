@@ -12,7 +12,30 @@ test('real local API: two accounts stay isolated; logout, consent and deletion w
    await expect(page.getByRole('heading',{name:`A gentler day, ${name}.`})).toBeVisible();
    const cookies=await context.cookies();expect(cookies.find(c=>c.name==='migramind_session')?.httpOnly).toBe(true);
   }
-  const pa=a.pages()[0],pb=b.pages()[0];
+  let pa=a.pages()[0];const pb=b.pages()[0];
+  // Regression: a restored session must render even when privacy policy blocks messaging.
+  const renderErrors:string[]=[];
+  pa.on('pageerror',error=>renderErrors.push(error.message));
+  await pa.addInitScript(()=>{
+   Object.defineProperty(window,'BroadcastChannel',{configurable:true,value:class {
+    constructor(){throw new DOMException('Blocked by browser policy','SecurityError')}
+   }});
+  });
+  await pa.reload();
+  await expect(pa.getByRole('heading',{name:'A gentler day, Synthetic Alpha.'})).toBeVisible();
+  for(const name of ['Migraine diary','Calendar','Insights','Overview']){
+   await pa.getByRole('navigation').getByRole('button',{name,exact:true}).click();
+   await expect(pa.locator('main h1')).toBeVisible();
+   expect(await pa.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  }
+  await pa.getByRole('button',{name:'Enter Attack Mode'}).click();
+  await expect(pa.getByRole('button',{name:'Exit Attack Mode'})).toBeVisible();
+  await expect(pa.getByRole('link',{name:/Emergency call/})).toHaveAttribute('href','tel:112');
+  await pa.getByRole('button',{name:'Exit Attack Mode'}).click();
+  expect(renderErrors).toEqual([]);
+  await pa.close();
+  pa=await a.newPage();await pa.goto('/');
+  await expect(pa.getByRole('heading',{name:'A gentler day, Synthetic Alpha.'})).toBeVisible();
   await pa.getByRole('navigation').getByRole('button',{name:'Trusted contacts',exact:true}).click();
   await pa.getByRole('button',{name:'Add contact',exact:true}).click();
   await pa.getByLabel('Name',{exact:true}).fill('Synthetic Alpha contact');await pa.getByLabel('Relationship',{exact:true}).fill('Friend');await pa.getByLabel('Phone number',{exact:true}).fill('+12025550100');await pa.getByRole('button',{name:'Save contact',exact:true}).click();
@@ -22,6 +45,17 @@ test('real local API: two accounts stay isolated; logout, consent and deletion w
   await stale.getByRole('navigation').getByRole('button',{name:'Trusted contacts',exact:true}).click();
   await expect(stale.getByText('Synthetic Alpha contact',{exact:true})).toBeVisible();
   await pb.getByRole('navigation').getByRole('button',{name:'Trusted contacts',exact:true}).click();await expect(pb.getByText('Synthetic Alpha contact',{exact:true})).toHaveCount(0);
+  const auth=await (await a.request.get('/api/auth/session')).json();
+  const onset=new Date(Date.now()-86400000).toISOString(),end=new Date(Date.now()-82800000).toISOString();
+  const headers={Origin:'http://127.0.0.1:5173','X-CSRF-Token':auth.csrf_token};
+  expect((await a.request.post('/api/episodes',{headers,data:{started_at:onset,ended_at:end,timezone_name:'UTC',severity:4}})).status()).toBe(201);
+  expect((await a.request.post('/api/early-symptoms',{headers,data:{symptom:'Synthetic private pattern symptom',onset_at:new Date(Date.now()-90000000).toISOString(),timezone_name:'UTC'}})).status()).toBe(201);
+  for(const [page,count] of [[pa,'1'],[pb,'0']] as const){
+   await page.getByRole('navigation').getByRole('button',{name:'Insights',exact:true}).click();
+   await expect(page.getByText('Timed episode onsets',{exact:true}).locator('..').locator('dd')).toHaveText(count);
+  }
+  await expect(pa.getByText('Synthetic private pattern symptom: 1 recorded observations',{exact:true})).toBeVisible();
+  await expect(pb.getByText(/Synthetic private pattern symptom/)).toHaveCount(0);
   for(const page of [pa,pb]){
    await page.getByRole('navigation').getByRole('button',{name:'Account',exact:true}).click();
    await expect(page.getByRole('heading',{name:'Your account & privacy'})).toBeVisible();

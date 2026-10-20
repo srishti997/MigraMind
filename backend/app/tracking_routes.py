@@ -11,8 +11,23 @@ def register_tracking(app, db, Episode, Wellness, EarlySymptom, Contact, Profile
         row=owned_row(s,model,id,user)
         if not row: raise HTTPException(404,'Record not found')
         return row
-    def wellness_values(data):
-        values=data.model_dump(); values['date']=data.date.isoformat(); return values
+    def wellness_values(data,existing=None):
+        from zoneinfo import ZoneInfo
+        from datetime import timedelta,time
+        values=data.model_dump(); values['date']=data.date.isoformat()
+        if 'episode_observation' not in data.model_fields_set and existing:
+            values.pop('episode_observation')
+            # Preserve an existing confirmation only if its date/zone are unchanged.
+            if existing.date!=values['date'] or existing.timezone_name!=values['timezone_name']:
+                values.update(episode_observation=None,observation_recorded_at=None)
+        else:
+            observation=data.episode_observation
+            if observation:
+                day_end=datetime.combine(data.date+timedelta(days=1),time.min,ZoneInfo(data.timezone_name))
+                if day_end>datetime.now(timezone.utc):
+                    raise HTTPException(422,'Whole-day observations require a completed local date. Leave it unknown for today.')
+            values['observation_recorded_at']=datetime.now(timezone.utc).isoformat() if observation else None
+        return values
     def commit(s,row):
         try: s.commit()
         except IntegrityError:
@@ -26,7 +41,7 @@ def register_tracking(app, db, Episode, Wellness, EarlySymptom, Contact, Profile
     @app.put('/api/wellness/{id}')
     def edit_wellness(id:int,data:WellnessIn,s=Depends(db),user=Depends(require_user)):
         row=get_row(s,Wellness,id,user)
-        for k,v in wellness_values(data).items():setattr(row,k,v)
+        for k,v in wellness_values(data,row).items():setattr(row,k,v)
         return commit(s,row)
     @app.delete('/api/wellness/{id}',status_code=204)
     def delete_wellness(id:int,s=Depends(db),user=Depends(require_user)):
@@ -52,6 +67,14 @@ def register_tracking(app, db, Episode, Wellness, EarlySymptom, Contact, Profile
         from zoneinfo import ZoneInfo
         today=as_of or datetime.now(ZoneInfo(timezone_name)).date()
         return summarize(owned(s,Episode,user).all(),owned(s,Wellness,user).all(),today,timezone_name)
+    @app.get('/api/pattern-insights')
+    def pattern_insights(timezone_name:str=Query(default='Asia/Kolkata',max_length=100),days:int=Query(default=30,ge=7,le=90),s=Depends(db),user=Depends(require_user)):
+        try:valid_zone(timezone_name)
+        except ValueError:raise HTTPException(422,'Invalid reporting timezone')
+        from .pattern_insights import describe
+        return describe(owned(s,Episode,user).all(),owned(s,Wellness,user).all(),
+            owned(s,EarlySymptom,user).all(),timezone_name,days,datetime.now(timezone.utc))
+
     @app.get('/api/export')
     def export(s=Depends(db),user=Depends(require_user)):
         def records(model):return [{col.name:getattr(row,col.name) for col in model.__table__.columns if col.name not in ('active_slot','owner_id')} for row in owned(s,model,user).order_by(model.id).all()]

@@ -73,6 +73,8 @@ class Wellness(Owned, Base):
     missed_meals: Mapped[bool | None] = mapped_column(nullable=True)
     screen_hours: Mapped[float | None] = mapped_column(nullable=True)
     menstrual_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    episode_observation: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    observation_recorded_at: Mapped[str | None] = mapped_column(String(40), nullable=True)
 class EarlySymptom(Owned, Base):
     __tablename__ = 'early_symptoms'
     id: Mapped[int] = mapped_column(primary_key=True)

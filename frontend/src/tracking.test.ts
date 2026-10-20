@@ -2,6 +2,12 @@
 import {describe,it,expect} from 'vitest';
 import {episodePayload,localInput,deviceZone,timestamp} from './tracking';
 describe('tracking entry serialization',()=>{
+ it('serializes omitted and blank severity as null rather than zero',()=>{
+  const form=document.createElement('form');
+  expect(episodePayload(form).severity).toBeNull();
+  form.innerHTML='<input name="severity" value="">';
+  expect(episodePayload(form).severity).toBeNull();
+ });
  it('preserves zero severity and leaves optional values unknown',()=>{
   const form=document.createElement('form');form.innerHTML='<input name="date" value="2026-10-19"><input name="severity" value="0"><input name="started_at" value="2026-10-19T10:30:00"><input name="duration" value="">';
   const data=episodePayload(form);expect(data.severity).toBe(0);expect(data.duration).toBeNull();expect(data.started_at).toBe(new Date('2026-10-19T10:30:00').toISOString());expect(data.timezone_name).toBe(deviceZone());
