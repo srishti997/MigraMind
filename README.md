@@ -163,7 +163,7 @@ The local data audit found no suitable real longitudinal training dataset. Appli
 Read-only audit from `backend`:
 
 ```powershell
-./.venv/Scripts/python -m research.cli --audit-db --output-dir ../.research/local-audit
+./.venv/Scripts/python -m research.cli --audit-db --account-id YOUR_ACCOUNT_ID --output-dir ../.research/local-audit
 ```
 
 Only aggregate status/reporting is emitted; no feature rows or probabilities are printed. The current outcome is `insufficient_data`, `trained: false`, `model_served: false`. The optional ML dependencies are in `backend/requirements-ml.txt`; the tested environment is locked in `backend/requirements-ml.lock.txt`. XGBoost is absent and its adapter reports dependency unavailability. Synthetic model fits occur only inside automated tests and are not presented as research performance.
@@ -212,3 +212,10 @@ Migration **007** adds an optional whole-day episode observation and its server 
 See [pattern-insights methods, exclusions and manual verification](docs/PATTERN_INSIGHTS.md). The authenticated endpoint is `/api/pattern-insights`; it requires the existing session-bound header on reads. Charts have accessible tables/text, comparisons require at least three values per group as an engineering display safeguard, and sparse groups show **Not enough information yet**. All results remain descriptive and limited by retrospective reporting and missing data.
 
 Sprint 8 verification: **97 backend tests and 49 frontend tests passed; 12 Playwright tests passed in the preceding browser verification**; production build passed. Tests use synthetic fixtures, including a real local API check with two temporary accounts. SQLite migration 007 preserved existing values and ownership against a private backup. One upstream TestClient deprecation warning remains. PostgreSQL, screen-reader/device comfort, large-history performance and real-world data quality remain unverified; no clinical validation is claimed. Preview at **http://127.0.0.1:5173** after signing in and choosing Insights.
+
+
+## Personalized AI data foundation
+
+Overview > **AI Insights - In Development** > **Your data readiness** > **Review data readiness** shows account-only observation coverage, missingness and established prospective-label counts. The read-only `/api/v1/data-readiness` service prepares current features with strict pre-cutoff availability and an elapsed-24-hour horizon. Null severity stays unknown; zero stays a valid rating; missing dates never become migraine-free days.
+
+No model is trained or served. Current editable records cannot reconstruct immutable historical features or verified prospective labels, so training/evaluation remain blocked. No migration or user-record update is needed; preparation captures are temporary and are not saved as historical evidence. The local audit CLI now requires an explicit `--account-id` and cannot pool accounts. See [schema, leakage rules, readiness criteria and future evaluation plan](docs/PERSONALIZED_AI_FOUNDATION.md).
