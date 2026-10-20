@@ -75,6 +75,17 @@ def register_tracking(app, db, Episode, Wellness, EarlySymptom, Contact, Profile
         return describe(owned(s,Episode,user).all(),owned(s,Wellness,user).all(),
             owned(s,EarlySymptom,user).all(),timezone_name,days,datetime.now(timezone.utc))
 
+    @app.get('/api/v1/data-readiness')
+    def data_readiness(timezone_name:str=Query(default='UTC',max_length=100),days:int=Query(default=30,ge=7,le=90),s=Depends(db),user=Depends(require_user)):
+        try:valid_zone(timezone_name)
+        except ValueError:raise HTTPException(422,'Invalid reporting timezone')
+        from research.account_foundation import FIELDS, assess
+        models={'episodes':Episode,'wellness':Wellness,'early_symptoms':EarlySymptom}
+        records={key:[{field:getattr(row,field) for field in ('owner_id',*FIELDS[key])}
+            for row in owned(s,model,user).order_by(model.id).all()] for key,model in models.items()}
+        # Read first, then mark when these exact values became available to preparation.
+        return assess(user.id,records,datetime.now(timezone.utc),timezone_name,days)
+
     @app.get('/api/export')
     def export(s=Depends(db),user=Depends(require_user)):
         def records(model):return [{col.name:getattr(row,col.name) for col in model.__table__.columns if col.name not in ('active_slot','owner_id')} for row in owned(s,model,user).order_by(model.id).all()]

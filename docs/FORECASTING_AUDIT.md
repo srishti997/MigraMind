@@ -1,6 +1,6 @@
 # MigraMind forecasting research: data audit and protocol v1
 
-This is an offline experimentation foundation, not a clinical model. No usable real longitudinal dataset was found, no model was trained on application records, no clinical performance is reported, and no model can trigger assistance actions. The app remains a single-user local prototype without authentication.
+This is an offline experimentation foundation, not a clinical model. No usable real longitudinal dataset was found, no model was trained on application records, no clinical performance is reported, and no model can trigger assistance actions. This audit predates account authentication. The current app has per-account authorization; the newer [account preparation foundation](PERSONALIZED_AI_FOUNDATION.md) documents current runtime data readiness. Original offline provenance and stop rules below remain conservative research requirements.
 
 ## Local inventory and provenance
 

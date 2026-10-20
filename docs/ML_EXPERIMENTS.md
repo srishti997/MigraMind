@@ -9,7 +9,7 @@ From the repository root, in PowerShell:
 ```powershell
 cd backend
 ./.venv/Scripts/python -m pip install -r requirements-ml.txt
-./.venv/Scripts/python -m research.cli --audit-db --output-dir ../.research/local-audit
+./.venv/Scripts/python -m research.cli --audit-db --account-id YOUR_ACCOUNT_ID --output-dir ../.research/local-audit
 ```
 
 The audit is read-only and never trains. `.research/local-audit/report.json` contains aggregate completeness/provenance blockers. No health rows are printed to stdout. No external data is fetched. ML dependencies are optional and kept separate from runtime requirements. The tested environment is captured in `backend/requirements-ml.lock.txt`.

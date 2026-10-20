@@ -11,14 +11,16 @@ from .dataset import PIPELINE_VERSION
 from .experiment import run
 
 
-def audit_current_database():
+def audit_current_database(account_id):
     # Read only; use existing SQLAlchemy session configuration. Never infer real provenance.
-    from app.main import SessionLocal, Episode, Wellness, EarlySymptom, AttackSession
-    now=datetime.now(timezone.utc).isoformat()
+    from app.main import SessionLocal, User, Episode, Wellness, EarlySymptom, AttackSession
+    if not isinstance(account_id,int) or isinstance(account_id,bool) or account_id <= 0: raise ValueError('An account ID is required')
     with SessionLocal() as s:
-        def records(model):return [{col.name:getattr(row,col.name) for col in model.__table__.columns} for row in s.query(model).all()]
-        snapshot={'schema_version':3,'exported_at':now,'episodes':records(Episode),'wellness':records(Wellness),
+        if s.get(User,account_id) is None: raise ValueError('Account unavailable')
+        def records(model):return [{col.name:getattr(row,col.name) for col in model.__table__.columns} for row in s.query(model).filter_by(owner_id=account_id).all()]
+        collections={'episodes':records(Episode),'wellness':records(Wellness),
             'early_symptoms':records(EarlySymptom),'attack_sessions':records(AttackSession)}
+        snapshot={'schema_version':3,'exported_at':datetime.now(timezone.utc).isoformat(),**collections}
     data=Bundle(snapshots=[snapshot])
     return data,{'pipeline_version':PIPELINE_VERSION,'status':'insufficient_data','trained':False,
         'local_only':True,'row_counts':{key:len(snapshot[key]) for key in ['episodes','wellness','early_symptoms','attack_sessions']},
@@ -30,6 +32,7 @@ def audit_current_database():
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description='Local migraine research; no predictions, publishing, or emergency actions.')
+    parser.add_argument('--account-id',type=int,help='Required account scope for local administrative database audit')
     parser.add_argument('--audit-db',action='store_true',help='Read-only aggregate audit; never trains')
     parser.add_argument('--input',type=Path,help='Local version-1 research bundle, not a raw final export')
     parser.add_argument('--start',help='First UTC-offset-bearing prediction time, inclusive')
@@ -39,12 +42,14 @@ def main(argv=None):
     parser.add_argument('--output-dir',type=Path,help='Explicit private output directory for aggregate report')
     parser.add_argument('--write-dataset',action='store_true',help='Also save sensitive derived features locally')
     args=parser.parse_args(argv)
+    if args.audit_db and (args.account_id is None or args.account_id<=0):parser.error('--audit-db requires a positive --account-id')
+    if args.account_id is not None and not args.audit_db:parser.error('--account-id is only for --audit-db')
     if args.audit_db and (args.input or args.train or args.write_dataset):parser.error('Audit is read-only and cannot train or emit a dataset')
     if args.write_dataset and not args.output_dir:parser.error('Sensitive dataset output requires --output-dir')
     if args.train and not args.output_dir:parser.error('Research fitting requires a private --output-dir')
     try:
         if args.audit_db:
-            _,report=audit_current_database();rows=[]
+            _,report=audit_current_database(args.account_id);rows=[]
         else:
             if not args.input or not args.start or not args.end:parser.error('Supply --input, --start and --end, or use --audit-db')
             content=args.input.read_bytes()
