@@ -252,7 +252,7 @@ def test_export_preserves_unknown_values_and_all_record_types(client):
     client.post('/api/attack-sessions/start')
     r=client.get('/api/export');assert r.status_code==200
     assert r.headers['cache-control']=='no-store' and 'attachment' in r.headers['content-disposition']
-    data=r.json();assert data['schema_version']==4
+    data=r.json();assert data['schema_version']==5
     for key in ['episodes','wellness','early_symptoms','attack_sessions']: assert len(data[key])==1
     assert data['wellness'][0]['sleep_hours'] is None
     assert data['episodes'][0]['medications'][0]['name']=='Synthetic medication'
