@@ -36,6 +36,9 @@ class LoginSession(Base):
 class Owned:
     # NULL means preserved, unclaimed pre-authentication records.
     owner_id: Mapped[int | None] = mapped_column(ForeignKey('users.id'), nullable=True, index=True)
+from .prospective_models import collection_models
+DailyCheckin, CheckinRevision = collection_models(Base, Owned)
+
 class SharingConsent(Owned, Base):
     __tablename__ = 'sharing_consents'
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -159,7 +162,7 @@ app.add_middleware(CORSMiddleware, allow_origins=os.getenv('CORS_ORIGINS','http:
 from .auth import Authentication, owned, owned_row
 # Account deletion: feedback/episodes before referenced sessions; preferences before contacts.
 auth = Authentication(app, db, User, LoginSession, SharingConsent, Contact,
-    [SupportFeedback, Episode, SupportPreferences, Wellness, EarlySymptom, Profile, AttackSession, Contact])
+    [CheckinRevision, DailyCheckin, SupportFeedback, Episode, SupportPreferences, Wellness, EarlySymptom, Profile, AttackSession, Contact])
 require_user = auth.require_user
 @app.get('/api/health')
 def health(): return {'status':'ok'}
@@ -258,7 +261,7 @@ forecast_service = ForecastServiceV1()
 
 @app.get('/api/v1/forecast', response_model=ForecastResponseV1)
 def forecast_status(user=Depends(require_user)):
-    # Current collection has no explicit coverage or immutable research history.
+    # Daily reports do not establish complete surveillance or validated prospective outcomes.
     # No request can train, load, or activate an experimental model.
     from fastapi.responses import JSONResponse
     return JSONResponse(forecast_service.status().model_dump(),headers={'Cache-Control':'no-store'})
@@ -273,3 +276,6 @@ async def private_api_responses(request, call_next):
     if request.url.path.startswith('/api/'):
         response.headers['Cache-Control'] = 'no-store'
     return response
+
+from .prospective import register_collection
+register_collection(app, db, DailyCheckin, CheckinRevision, Episode, Wellness, require_user, auth.limiter)

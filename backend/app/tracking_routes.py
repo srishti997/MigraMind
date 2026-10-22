@@ -89,9 +89,11 @@ def register_tracking(app, db, Episode, Wellness, EarlySymptom, Contact, Profile
     @app.get('/api/export')
     def export(s=Depends(db),user=Depends(require_user)):
         def records(model):return [{col.name:getattr(row,col.name) for col in model.__table__.columns if col.name not in ('active_slot','owner_id')} for row in owned(s,model,user).order_by(model.id).all()]
-        data={'schema_version':4,'exported_at':datetime.now(timezone.utc).isoformat(),
+        from .main import DailyCheckin, CheckinRevision
+        data={'schema_version':5,'exported_at':datetime.now(timezone.utc).isoformat(),
             'account':{'email':user.email,'display_name':user.display_name,'created_at':user.created_at},'sharing_consents':records(SharingConsent),
             'scope':'Current account only. Unclaimed legacy records excluded. Missing values are unknown. UTC timestamps with original IANA timezones where recorded; legacy dates have no inferred timezone.',
+            'daily_checkins':records(DailyCheckin),'checkin_revisions':records(CheckinRevision),
             'episodes':records(Episode),'wellness':records(Wellness),'early_symptoms':records(EarlySymptom),
             'attack_sessions':records(AttackSession),'contacts':records(Contact),'profiles':records(Profile),
             'support_preferences':records(SupportPreferences),'support_feedback':records(SupportFeedback)}
