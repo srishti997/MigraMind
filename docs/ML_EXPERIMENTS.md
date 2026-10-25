@@ -1,5 +1,9 @@
 ﻿# Running local forecasting experiments
 
+## Current Sprint 10 workflow
+
+Use [ML_RESEARCH_BASELINE.md](ML_RESEARCH_BASELINE.md) and `python -m research.baseline_cli` for revision-aware research schema 2. It supports Sprint 9 numeric-history projection, explicit independent outcome journals, strict cutoff/freeze reconstruction, account isolation and opt-in synthetic software checks. It never turns app status into verified onset/coverage or reads a live database through its CLI. No eligible real bundle was supplied and no real-data fitting was performed. The remaining sections describe the preserved **legacy v1 snapshot workflow**, not an automatic migration or endorsement of historical app exports. Current v2.1 requires independent onset evidence and complete observation coverage for positives, complete explicit no-episode coverage for negatives, historical eligibility freezes and candidate-grid split boundaries. See the guide for exact policies.
+
 Read [the audit and frozen protocol](FORECASTING_AUDIT.md) before preparing data. There is currently **no suitable real dataset and no trained or validated MigraMind forecasting model**. Automated tests use synthetic fixtures only, with no results presented as research performance. Do not relabel seed/demo fixtures as real longitudinal data.
 
 ## Install and audit
@@ -40,7 +44,7 @@ Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8000/api/export -OutFile ../
 
 This creates one snapshot of what is known **now**, not a historical dataset. Do not copy it to earlier dates or overwrite genuine snapshot metadata. The app currently has no formal observation-coverage collection flow or immutable journal. Establish those processes prospectively before creating a research bundle. Reconcile time-unknown episodes/recovery, onset quality and late reporting with the participant/research team; do not invent times or clinical outcomes.
 
-The pipeline is single participant. Do not concatenate different people's exports or transfer between unrelated participant keys. No user identity or ownership model exists in this local app. Use consented deidentified data and private local storage with appropriate access controls. Export and derived feature files still contain health information.
+The legacy pipeline is single participant. Do not concatenate different people's exports or transfer between unrelated participant keys. The application now enforces account ownership; the older v1 bundle itself only attests to participant identity. The v2 contract explicitly rejects mixed account journals. Use consented deidentified data and private local storage with appropriate access controls. Export and derived feature files still contain health information.
 
 ## Prepare, then explicitly opt in to fitting
 
