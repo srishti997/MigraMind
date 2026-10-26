@@ -54,3 +54,16 @@ test('quality requests are explicit and never imply clinical readiness',async()=
  expect(await screen.findByRole('heading',{name:'Insufficient evidence for forecasting'})).toBeVisible();
  expect(within(screen.getByRole('table')).getByText('stress')).toBeVisible();
 });
+
+
+test('review yesterday keeps status unknown until explicit confirmation and uses the completed local date',async()=>{
+ vi.mocked(api).mockResolvedValue([]);render(<DailyCheckin/>);
+ const button=await screen.findByRole('button',{name:'Review yesterday'});
+ await vi.waitFor(()=>expect(button).toBeEnabled());fireEvent.click(button);
+ const day=new Date();day.setDate(day.getDate()-1);
+ const expected=`${day.getFullYear()}-${String(day.getMonth()+1).padStart(2,'0')}-${String(day.getDate()).padStart(2,'0')}`;
+ expect(screen.getByLabelText('Report date')).toHaveValue(expected);
+ expect(screen.getByLabelText('Migraine status')).toHaveValue('unknown');
+ expect(String((screen.getByLabelText('Event time') as HTMLInputElement).value)).toMatch(new RegExp('^'+expected));
+ expect(vi.mocked(api).mock.calls.every(call=>call[1]!=='POST')).toBe(true);
+});

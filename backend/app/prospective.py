@@ -186,3 +186,6 @@ def register_collection(app, db, Daily, Revision, Episode, Wellness, require_use
             'correction_count':corrections,'deleted_reports':len(rows)-len(current),
             'missing_fields':{key:sum(row.values[key] is None for row in current) for key in OPTIONAL},
             'forecasting_justified':False}
+
+    from .research_quality import register_research_quality
+    register_research_quality(app, db, Daily, Revision, Episode, Wellness, require_user, limiter)
