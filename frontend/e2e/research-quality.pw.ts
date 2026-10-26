@@ -1,0 +1,38 @@
+import {test,expect} from '@playwright/test';
+
+test('research review and explicit private download work on mobile without changing history',async({browser})=>{
+ const context=await browser.newContext({viewport:{width:320,height:850},timezoneId:'UTC'});
+ const password='Synthetic-sprint11-password-123';let token='';
+ try{
+  const bootstrap=await (await context.request.get('/api/auth/session')).json();
+  const response=await context.request.post('/api/auth/register',{headers:{Origin:'http://127.0.0.1:5173','X-CSRF-Token':bootstrap.csrf_token},data:{email:`synthetic-s11-${Date.now()}@example.test`,display_name:'Synthetic S11',password}});
+  expect(response.status()).toBe(201);token=(await response.json()).csrf_token;
+  const page=await context.newPage();const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('/');await page.getByRole('navigation').getByRole('button',{name:'Daily status',exact:true}).click();
+  await page.getByRole('button',{name:'Review yesterday'}).click();
+  await expect(page.getByLabel('Migraine status')).toHaveValue('unknown');
+  await page.getByLabel('Migraine status').selectOption('no_migraine');
+  await page.getByRole('button',{name:'Save daily check-in'}).click();
+  await expect(page.getByText('Daily check-in saved.',{exact:true})).toBeVisible();
+  const headers={'X-CSRF-Token':token};
+  let reports=await (await context.request.get('/api/daily-checkins',{headers})).json();
+  const revised=await context.request.put(`/api/daily-checkins/${reports[0].id}`,{headers:{...headers,Origin:'http://127.0.0.1:5173'},data:{...reports[0].values,stress:0,expected_revision:1,status_recorded_at:undefined}});
+  expect(revised.status()).toBe(200);
+  const before=await (await context.request.get('/api/daily-checkins',{headers})).json();
+  await page.getByRole('navigation').getByRole('button',{name:'Overview',exact:true}).click();
+  const disclosure=page.getByText('Research data quality',{exact:true});await disclosure.focus();await page.keyboard.press('Enter');
+  await page.getByRole('button',{name:'Review research quality'}).click();
+  await expect(page.getByRole('heading',{name:'Not ready for forecasting research'})).toBeVisible();
+  const download=page.getByRole('button',{name:'Download research-preparation JSON'});await expect(download).toBeDisabled();
+  await page.getByRole('checkbox',{name:/I consent to this local download/}).check();
+  const responseWait=page.waitForResponse(r=>r.url().includes('/api/v1/research-export')&&r.request().method()==='POST');
+  const downloadWait=page.waitForEvent('download');await download.click();
+  const exported=await (await responseWait).json();await downloadWait;
+  expect(exported.training_eligible).toBe(false);expect(exported.daily_revisions).toHaveLength(2);expect(exported.daily_revisions.map((r:{action:string})=>r.action)).toEqual(['creation','correction']);expect(exported.outcome_revisions).toEqual([]);
+  await expect(download).toBeDisabled();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  const after=await (await context.request.get('/api/daily-checkins',{headers})).json();expect(after).toEqual(before);expect(errors).toEqual([]);
+ }finally{
+  if(token){const removed=await context.request.delete('/api/account',{headers:{Origin:'http://127.0.0.1:5173','X-CSRF-Token':token},data:{password,confirmation:'DELETE'}});expect(removed.status()).toBe(204)}
+  await context.close();
+ }
+});

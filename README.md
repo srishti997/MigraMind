@@ -239,3 +239,10 @@ The [revision-aware research guide and dataset specification](docs/ML_RESEARCH_B
 Sprint 9 numeric revisions are reconstructable, but daily status is not verified onset and missing logs are never negatives. The account adapter supplies no verified outcomes; real research remains blocked on research consent, complete onset/coverage journals and provenance review. Unknown, incomplete, withdrawn, conflicting and historically unverifiable outcomes are excluded. Sample/class gates are engineering stop rules, not clinical readiness. Synthetic fitting requires explicit opt-in and is software verification only. No real health data was used for fitting and no model is deployed.
 
 Sprint 10 correction policy: complete independent observation coverage is required for both classes, with separate onset evidence for positives and explicit no-episode coverage for negatives. Historical decisions freeze per window; dataset-as-of metadata and fixed candidate-grid splits prevent future-dependent selection. See the research guide for verification results and limitations.
+
+
+## Sprint 11: research data quality
+
+Overview > AI Insights > **Research data quality** reviews the last 30 completed local days, separating explicit episode/no-episode reports, unknown and missing days, optional omissions, conflicts and history issues. **Daily status > Review yesterday** prepares the existing form; saving remains explicit and creates the existing revision history. Nothing is automatically corrected or treated as a verified forecast outcome.
+
+A separately confirmed **local research-preparation download** includes selected numeric observations and complete eligible correction histories, with scope, timestamps, quality flags and provenance. It excludes deleted chains, identity and free text. This is private health data, not automatically de-identified, clinically validated or ready for model training. The consent is for this download only; no research enrollment or external sharing occurs. No migration or new dependency is required. See [schema, consent, missingness, limitations and verification](docs/RESEARCH_DATA_QUALITY.md).
