@@ -12,6 +12,7 @@ Copy-Item .env.example .env
 docker compose up -d
 cd backend
 python -m venv .venv
+./.venv/Scripts/python -m pip install --upgrade pip==26.2.2
 ./.venv/Scripts/python -m pip install -r requirements.txt
 Copy-Item .env.example .env
 # This template defaults to SQLite. For PostgreSQL, set DATABASE_URL in backend/.env
@@ -45,6 +46,8 @@ cd ../backend
 API tests use an isolated in-memory database and cover episode lifecycle, invalid input, contact updates/deletion and profile persistence. Frontend tests cover timezone-safe calendar dates and leap-year alignment.
 
 ## Behavior and boundaries
+
+Sprint 14 adds validated deployment configuration, a private error boundary and security regressions. See [the security/privacy audit](docs/SECURITY_PRIVACY_AUDIT.md) for findings, exact verification and remaining deployment blockers. The app remains a local synthetic-data prototype; passing checks does not approve real health-data collection.
 
 - Diary: add, read notes, edit and delete episodes. Calendar highlights records and filters entries by date. Overview calculates descriptive statistics from diary entries, not medical predictions.
 - Contacts: add, edit, delete and initiate calls with `tel:` links. Desktop dialing depends on an installed calling handler. Demo numbers must be replaced before use.

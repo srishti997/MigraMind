@@ -1,6 +1,5 @@
 """Opaque database sessions; no authentication tokens in browser storage or logs."""
 import hashlib
-import os
 import secrets
 import time
 from collections import defaultdict, deque
@@ -9,8 +8,9 @@ from threading import Lock
 from argon2 import PasswordHasher, Type
 from argon2.exceptions import VerificationError, InvalidHashError
 from fastapi import Depends, HTTPException, Request, Response
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 from sqlalchemy.exc import IntegrityError
+from .security import SecuritySettings
 
 hasher = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=2, type=Type.ID)
 DUMMY_HASH = hasher.hash(secrets.token_urlsafe(32))
@@ -46,7 +46,7 @@ class ConsentIn(BaseModel):
     model_config = ConfigDict(extra='forbid')
     contact_id: int = Field(gt=0)
     scope: str = Field(pattern='^support_card$')
-    confirmed: bool
+    confirmed: StrictBool
 class Limiter:
     """Process-local sliding windows. Multi-worker deployments need a shared store."""
     def __init__(self): self.windows = defaultdict(deque); self.lock = Lock()
@@ -54,24 +54,29 @@ class Limiter:
         with self.lock:
             stamp = time.monotonic()
             for k in list(self.windows):
-                if not self.windows[k] or self.windows[k][-1] < stamp-900: del self.windows[k]
+                while self.windows[k] and self.windows[k][0] <= stamp-900:
+                    self.windows[k].popleft()
+                if not self.windows[k]: del self.windows[k]
             window = self.windows[key]
             if len(window) >= limit: raise HTTPException(429, 'Too many attempts. Try again later.', headers={'Retry-After':'900'})
             window.append(stamp)
     def clear(self): self.windows.clear()
 
 class Authentication:
-    def __init__(self, app, db, User, LoginSession, Consent, Contact, models):
+    def __init__(self, app, db, User, LoginSession, Consent, Contact, models, settings=None):
         self.limiter = Limiter()
-        secure = os.getenv('APP_ENV', 'development') == 'production'
+        settings = settings or SecuritySettings.load()
+        secure = settings.production
         cookie = '__Host-migramind_session' if secure else 'migramind_session'
-        origins = set(os.getenv('CORS_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173').split(','))
-        ttl = int(os.getenv('SESSION_HOURS', '12'))
-        if ttl < 1 or ttl > 168: raise RuntimeError('SESSION_HOURS must be 1–168')
+        origins = set(settings.origins)
+        ttl = settings.session_hours
         def session(request, s):
             raw = request.cookies.get(cookie, '')
             row = s.query(LoginSession).filter_by(token_digest=digest(raw)).first() if raw else None
-            return row if row and datetime.fromisoformat(row.expires_at) > now() else None
+            try:
+                return row if row and datetime.fromisoformat(row.expires_at) > now() else None
+            except (ValueError, TypeError):
+                return None
         def csrf(request, row):
             if request.headers.get('origin') not in origins:
                 raise HTTPException(403, 'Request origin is not allowed')

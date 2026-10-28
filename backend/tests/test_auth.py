@@ -151,6 +151,9 @@ def test_production_cookie_and_password_validation_redaction(clients,monkeypatch
     bad=a.post('/api/auth/register',json={'email':'bad','password':'secret','display_name':'Synthetic'})
     assert bad.status_code==422 and 'secret' not in bad.text and 'input' not in bad.text
     monkeypatch.setenv('APP_ENV','production')
+    monkeypatch.setenv('CORS_ORIGINS','https://testserver')
+    monkeypatch.setenv('ALLOWED_HOSTS','testserver')
+    monkeypatch.setenv('DATABASE_URL','postgresql+psycopg://synthetic:synthetic@localhost/synthetic?sslmode=verify-full')
     production=FastAPI()
     Authentication(production,db,User,LoginSession,SharingConsent,Contact,[])
     production.dependency_overrides[db]=app.dependency_overrides[db]

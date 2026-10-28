@@ -5,14 +5,17 @@ from dotenv import load_dotenv
 from .assistance_defaults import DEFAULT_HELP_MESSAGE
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from .security import SecuritySettings, PrivateBoundary
 from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy import create_engine, event, String, Integer, Text, CheckConstraint, JSON, Boolean, ForeignKey, UniqueConstraint
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker, Session
 
 load_dotenv()
-url = os.getenv('DATABASE_URL', 'sqlite:///./migramind.db')
-engine = create_engine(url, connect_args={'check_same_thread': False} if url.startswith('sqlite') else {}, echo=False)
+security = SecuritySettings.load()
+url = security.database_url
+engine = create_engine(url, connect_args={'check_same_thread': False} if url.startswith('sqlite') else {}, echo=False, hide_parameters=True)
 if url.startswith('sqlite'):
     @event.listens_for(engine, 'connect')
     def enforce_sqlite_foreign_keys(connection, _):
@@ -146,23 +149,26 @@ class ProfileIn(BaseModel):
     environment: str = Field(default='', max_length=2000)
 def db():
     with SessionLocal() as session: yield session
-app = FastAPI(title='MigraMind API', description='Account-isolated local prototype. Not production hardened. No emergency dispatch.')
+app = FastAPI(title='MigraMind API', description='Account-isolated local prototype. Not production hardened. No emergency dispatch.',
+    docs_url=None if security.production else '/docs', redoc_url=None if security.production else '/redoc',
+    openapi_url=None if security.production else '/openapi.json')
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 @app.exception_handler(RequestValidationError)
 async def private_validation_errors(request, error):
     # Do not echo passwords, health fields, or raw validation inputs.
     return JSONResponse(status_code=422, content={'detail':[
-        {'loc':list(item['loc']), 'msg':item['msg'], 'type':item['type']} for item in error.errors()]})
+        {'loc':[item['loc'][0]], 'msg':'Invalid or unexpected value', 'type':item['type']} for item in error.errors()]})
 @app.exception_handler(SQLAlchemyError)
 async def private_database_errors(request, error):
     # SQL exceptions may contain bound health values: never print their text.
     return JSONResponse(status_code=503, content={'detail':'The database could not complete this request. Try again.'})
-app.add_middleware(CORSMiddleware, allow_origins=os.getenv('CORS_ORIGINS','http://localhost:5173,http://127.0.0.1:5173').split(','), allow_methods=['GET','POST','PUT','DELETE'], allow_headers=['Content-Type','X-CSRF-Token'], allow_credentials=True)
+app.add_middleware(CORSMiddleware, allow_origins=list(security.origins), allow_methods=['GET','POST','PUT','DELETE'], allow_headers=['Content-Type','X-CSRF-Token'], allow_credentials=True)
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(security.hosts), www_redirect=False)
 from .auth import Authentication, owned, owned_row
 # Account deletion: feedback/episodes before referenced sessions; preferences before contacts.
 auth = Authentication(app, db, User, LoginSession, SharingConsent, Contact,
-    [CheckinRevision, DailyCheckin, SupportFeedback, Episode, SupportPreferences, Wellness, EarlySymptom, Profile, AttackSession, Contact])
+    [CheckinRevision, DailyCheckin, SupportFeedback, Episode, SupportPreferences, Wellness, EarlySymptom, Profile, AttackSession, Contact], settings=security)
 require_user = auth.require_user
 @app.get('/api/health')
 def health(): return {'status':'ok'}
@@ -279,3 +285,4 @@ async def private_api_responses(request, call_next):
 
 from .prospective import register_collection
 register_collection(app, db, DailyCheckin, CheckinRevision, Episode, Wellness, require_user, auth.limiter)
+app.add_middleware(PrivateBoundary, production=security.production)
