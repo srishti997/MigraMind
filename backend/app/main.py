@@ -1,12 +1,14 @@
 from datetime import date, datetime, timezone
 from typing import Literal
 import os
+from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from .assistance_defaults import DEFAULT_HELP_MESSAGE
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from .security import SecuritySettings, PrivateBoundary
+from .deployment import database_ready, DemoBoundary, operation_event
 from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy import create_engine, event, String, Integer, Text, CheckConstraint, JSON, Boolean, ForeignKey, UniqueConstraint
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -15,13 +17,19 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker,
 load_dotenv()
 security = SecuritySettings.load()
 url = security.database_url
-engine = create_engine(url, connect_args={'check_same_thread': False} if url.startswith('sqlite') else {}, echo=False, hide_parameters=True)
+engine = create_engine(url, connect_args={'check_same_thread': False} if url.startswith('sqlite') else {'connect_timeout':5},
+    **({} if url.startswith('sqlite') else {'pool_timeout':5, 'pool_pre_ping':True}), echo=False, hide_parameters=True)
 if url.startswith('sqlite'):
     @event.listens_for(engine, 'connect')
     def enforce_sqlite_foreign_keys(connection, _):
         connection.execute('PRAGMA foreign_keys=ON')
 SessionLocal = sessionmaker(bind=engine)
 class Base(DeclarativeBase): pass
+class DemoDeployment(Base):
+    __tablename__ = 'demo_deployments'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    fixture_version: Mapped[str] = mapped_column(String(40))
+    created_at: Mapped[str] = mapped_column(String(40))
 class User(Base):
     __tablename__ = 'users'
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -149,9 +157,18 @@ class ProfileIn(BaseModel):
     environment: str = Field(default='', max_length=2000)
 def db():
     with SessionLocal() as session: yield session
-app = FastAPI(title='MigraMind API', description='Account-isolated local prototype. Not production hardened. No emergency dispatch.',
+@asynccontextmanager
+async def lifespan(application):
+    if security.synthetic_demo and not database_ready(engine, True):
+        operation_event('startup_blocked')
+        raise RuntimeError('Synthetic demonstration database is not initialized at the required schema')
+    operation_event('startup_ready')
+    yield
+
+app = FastAPI(title='MigraMind API', description='Account-isolated local prototype. Not production hardened. No emergency dispatch.', lifespan=lifespan,
     docs_url=None if security.production else '/docs', redoc_url=None if security.production else '/redoc',
     openapi_url=None if security.production else '/openapi.json')
+app.state.synthetic_demo = security.synthetic_demo
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 @app.exception_handler(RequestValidationError)
@@ -164,6 +181,7 @@ async def private_database_errors(request, error):
     # SQL exceptions may contain bound health values: never print their text.
     return JSONResponse(status_code=503, content={'detail':'The database could not complete this request. Try again.'})
 app.add_middleware(CORSMiddleware, allow_origins=list(security.origins), allow_methods=['GET','POST','PUT','DELETE'], allow_headers=['Content-Type','X-CSRF-Token'], allow_credentials=True)
+app.add_middleware(DemoBoundary, enabled=security.synthetic_demo, probe=lambda: database_ready(engine, True))
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(security.hosts), www_redirect=False)
 from .auth import Authentication, owned, owned_row
 # Account deletion: feedback/episodes before referenced sessions; preferences before contacts.
@@ -172,6 +190,12 @@ auth = Authentication(app, db, User, LoginSession, SharingConsent, Contact,
 require_user = auth.require_user
 @app.get('/api/health')
 def health(): return {'status':'ok'}
+@app.get('/api/ready')
+def ready():
+    available = database_ready(engine, security.synthetic_demo)
+    if not available:
+        operation_event('readiness_unavailable')
+    return JSONResponse({'status': 'ready' if available else 'unavailable'}, status_code=200 if available else 503)
 @app.get('/api/episodes')
 def episodes(s: Session = Depends(db), user=Depends(require_user)): return owned(s,Episode,user).order_by(Episode.date.desc(), Episode.id.desc()).all()
 @app.post('/api/episodes', status_code=201)
@@ -212,6 +236,7 @@ def delete_contact(id: int, s: Session = Depends(db), user=Depends(require_user)
 @app.get('/api/profile')
 def profile(s: Session = Depends(db), user=Depends(require_user)):
     row=owned(s,Profile,user).first()
+    if not row and security.synthetic_demo: raise HTTPException(503, 'Demonstration unavailable')
     if not row: row=Profile(owner_id=user.id,name=user.display_name); s.add(row); s.commit(); s.refresh(row)
     return row
 @app.put('/api/profile')

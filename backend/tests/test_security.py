@@ -20,8 +20,9 @@ from test_research_quality import REQUEST
 
 
 PRODUCTION = {'APP_ENV': 'production', 'CORS_ORIGINS': 'https://app.example.test',
+    'DATA_MODE': 'synthetic', 'DEMO_ACKNOWLEDGEMENT': 'synthetic-only-no-real-health-data',
     'ALLOWED_HOSTS': 'api.example.test',
-    'DATABASE_URL': 'postgresql+psycopg://synthetic:synthetic@localhost/synthetic?sslmode=verify-full'}
+    'DATABASE_URL': 'postgresql+psycopg://synthetic:synthetic@localhost/review_synthetic_demo?sslmode=verify-full'}
 
 
 @pytest.mark.parametrize('changes', [
@@ -64,6 +65,7 @@ def test_required_production_settings_cannot_be_omitted(missing):
 
 def test_production_startup_rejects_configuration_before_engine_creation():
     env = {**os.environ, 'APP_ENV': 'production', 'CORS_ORIGINS': '*',
+        'DATA_MODE': 'synthetic', 'DEMO_ACKNOWLEDGEMENT': 'synthetic-only-no-real-health-data',
         'DATABASE_URL': 'invalid://synthetic:private-value@localhost/synthetic'}
     result = subprocess.run([sys.executable, '-c', 'import app.main'], env=env, capture_output=True, text=True)
     assert result.returncode != 0

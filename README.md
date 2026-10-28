@@ -47,6 +47,8 @@ API tests use an isolated in-memory database and cover episode lifecycle, invali
 
 ## Behavior and boundaries
 
+Sprint 15 adds a read-only, synthetic-only demonstration path with dedicated fixture provisioning, migration `009`, safe probes and deployment/runbook templates. Start with [deployment readiness](docs/DEPLOYMENT_READINESS.md), [architecture](docs/DEPLOYMENT_ARCHITECTURE.md) and [operations](docs/OPERATIONS_RUNBOOK.md). Nothing is deployed automatically; real health-data collection and clinical predictions remain blocked. The editable local-development workflow below remains separate from the demo.
+
 Sprint 14 adds validated deployment configuration, a private error boundary and security regressions. See [the security/privacy audit](docs/SECURITY_PRIVACY_AUDIT.md) for findings, exact verification and remaining deployment blockers. The app remains a local synthetic-data prototype; passing checks does not approve real health-data collection.
 
 - Diary: add, read notes, edit and delete episodes. Calendar highlights records and filters entries by date. Overview calculates descriptive statistics from diary entries, not medical predictions.

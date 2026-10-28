@@ -2,6 +2,8 @@
 
 Local prototype only. Do not deploy publicly or enter real health records yet.
 
+Sprint 15 provides a separate read-only synthetic-demo path. Production now also requires explicit synthetic mode, acknowledgement and a dedicated initialized fixture database; it does not authorize real health-data hosting. See [deployment readiness](DEPLOYMENT_READINESS.md) and [operations](OPERATIONS_RUNBOOK.md). Existing local-development editing remains separate. Public liveness/readiness return status only; neither is clinical or research readiness.
+
 Sprint 14 tightens this policy without authorizing production use: see [SECURITY_PRIVACY_AUDIT.md](SECURITY_PRIVACY_AUDIT.md). Invalid environment/origin/host/TTL settings fail startup. Production additionally requires explicit HTTPS origins and hosts, a PostgreSQL URL with `sslmode=verify-full`, and HTTPS as seen by ASGI. API docs are disabled in production. Generic errors and security headers cover normal and failed requests; field validation avoids echoing user-supplied names. Local loopback HTTP/SQLite remain supported. These changes do not implement encryption at rest, shared rate limiting, staff research access, consent enrollment or institutional approval.
 
 ## Architecture

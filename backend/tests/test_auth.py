@@ -151,9 +151,11 @@ def test_production_cookie_and_password_validation_redaction(clients,monkeypatch
     bad=a.post('/api/auth/register',json={'email':'bad','password':'secret','display_name':'Synthetic'})
     assert bad.status_code==422 and 'secret' not in bad.text and 'input' not in bad.text
     monkeypatch.setenv('APP_ENV','production')
+    monkeypatch.setenv('DATA_MODE','synthetic')
+    monkeypatch.setenv('DEMO_ACKNOWLEDGEMENT','synthetic-only-no-real-health-data')
     monkeypatch.setenv('CORS_ORIGINS','https://testserver')
     monkeypatch.setenv('ALLOWED_HOSTS','testserver')
-    monkeypatch.setenv('DATABASE_URL','postgresql+psycopg://synthetic:synthetic@localhost/synthetic?sslmode=verify-full')
+    monkeypatch.setenv('DATABASE_URL','postgresql+psycopg://synthetic:synthetic@localhost/review_synthetic_demo?sslmode=verify-full')
     production=FastAPI()
     Authentication(production,db,User,LoginSession,SharingConsent,Contact,[])
     production.dependency_overrides[db]=app.dependency_overrides[db]
@@ -166,7 +168,7 @@ def test_all_health_routes_require_authentication(clients):
     a,_,_=clients
     for route in app.routes:
         path=getattr(route,'path','')
-        if not path.startswith('/api/') or path=='/api/health' or path.startswith('/api/auth/'):continue
+        if not path.startswith('/api/') or path in ('/api/health','/api/ready') or path.startswith('/api/auth/'):continue
         path=path.replace('{id}','1')
         for method in route.methods:
             r=a.request(method,path,json={} if method not in ('GET','HEAD') else None)

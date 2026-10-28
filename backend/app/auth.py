@@ -11,6 +11,7 @@ from fastapi import Depends, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 from sqlalchemy.exc import IntegrityError
 from .security import SecuritySettings
+from .deployment import DEMO_EMAIL
 
 hasher = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=2, type=Type.ID)
 DUMMY_HASH = hasher.hash(secrets.token_urlsafe(32))
@@ -86,6 +87,8 @@ class Authentication:
             row = session(request, s)
             user = s.get(User, row.user_id) if row and row.user_id else None
             if not user: raise HTTPException(401, 'Sign in to continue')
+            if settings.synthetic_demo and user.email != DEMO_EMAIL:
+                raise HTTPException(401, 'Sign in to the synthetic demonstration')
             # Cookies are shared across tabs. Bind reads to the mounted UI's session.
             token = request.headers.get('x-csrf-token', '').encode('utf-8')
             if request.method in ('GET','HEAD') and not secrets.compare_digest(token, row.csrf_token.encode()):
@@ -100,7 +103,7 @@ class Authentication:
             row = LoginSession(user_id=user.id if user else None, token_digest=digest(raw), csrf_token=secrets.token_urlsafe(32), expires_at=(now()+timedelta(hours=ttl if user else 1)).isoformat())
             s.add(row); s.commit()
             response.set_cookie(cookie, raw, httponly=True, secure=secure, samesite='lax', path='/', max_age=ttl*3600 if user else 3600)
-            return {'user':public(user),'csrf_token':row.csrf_token,'expires_at':row.expires_at}
+            return {'user':public(user),'csrf_token':row.csrf_token,'expires_at':row.expires_at,'demo_mode':settings.synthetic_demo}
         def attempts(request, email=''):
             self.limiter.check(('ip', request.client.host if request.client else 'unknown'), 30)
             if email: self.limiter.check(('account',digest(email)),10)
@@ -108,13 +111,14 @@ class Authentication:
         def bootstrap(request: Request, response: Response, s=Depends(db)):
             row = session(request,s)
             if row:
-                return {'user':public(s.get(User,row.user_id)) if row.user_id else None,'csrf_token':row.csrf_token,'expires_at':row.expires_at}
+                return {'user':public(s.get(User,row.user_id)) if row.user_id else None,'csrf_token':row.csrf_token,'expires_at':row.expires_at,'demo_mode':settings.synthetic_demo}
             attempts(request)
             # Expired sessions are removed; opaque identifiers never reused on login.
             s.query(LoginSession).filter(LoginSession.expires_at < now().isoformat()).delete()
             return issue(s,response)
         @app.post('/api/auth/register', status_code=201)
         def register(data:Registration, request:Request, response:Response, s=Depends(db)):
+            if settings.synthetic_demo: raise HTTPException(403, 'Registration is disabled in the synthetic demonstration')
             attempts(request,data.email); previous=session(request,s); csrf(request,previous)
             password_hash=hasher.hash(data.password)
             user=User(email=data.email,display_name=data.display_name,password_hash=password_hash,created_at=now().isoformat())
@@ -125,12 +129,14 @@ class Authentication:
             return issue(s,response,user,previous)
         @app.post('/api/auth/login')
         def login(data:Credentials, request:Request, response:Response, s=Depends(db)):
+            if settings.synthetic_demo and data.email != DEMO_EMAIL:
+                raise HTTPException(401, 'Use the provided synthetic demonstration account')
             attempts(request,data.email); previous=session(request,s); csrf(request,previous)
             user=s.query(User).filter_by(email=data.email).first()
             try: valid=hasher.verify(user.password_hash if user else DUMMY_HASH,data.password)
             except (VerificationError,InvalidHashError): valid=False
             if not user or not valid: raise HTTPException(401,'Email or password is incorrect')
-            if hasher.check_needs_rehash(user.password_hash): user.password_hash=hasher.hash(data.password)
+            if not settings.synthetic_demo and hasher.check_needs_rehash(user.password_hash): user.password_hash=hasher.hash(data.password)
             return issue(s,response,user,previous)
         @app.post('/api/auth/logout',status_code=204)
         def logout(request:Request,response:Response,user=Depends(require_user),s=Depends(db)):

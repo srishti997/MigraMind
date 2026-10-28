@@ -33,6 +33,8 @@ def register_support(app,db,Contact,AttackSession,Preferences,Feedback,require_u
     def prefs(s,user):
         row=owned(s,Preferences,user).first()
         if not row:
+            if getattr(app.state, 'synthetic_demo', False):
+                raise HTTPException(503, 'Demonstration unavailable')
             row=Preferences(owner_id=user.id,**PreferencesIn().model_dump());s.add(row)
             try:s.commit()
             except IntegrityError:s.rollback();row=owned(s,Preferences,user).first()

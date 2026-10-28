@@ -16,6 +16,7 @@ class SecuritySettings:
     hosts: tuple[str, ...]
     session_hours: int
     database_url: str = field(repr=False)
+    synthetic_demo: bool = False
 
     @classmethod
     def load(cls, environment=None):
@@ -24,6 +25,12 @@ class SecuritySettings:
         if mode not in ('development', 'production'):
             raise RuntimeError('APP_ENV must be development or production')
         production = mode == 'production'
+        data_mode = env.get('DATA_MODE', 'local' if not production else '')
+        if data_mode not in ('local', 'synthetic') or (production and data_mode != 'synthetic'):
+            raise RuntimeError('Production requires DATA_MODE=synthetic; local development may use local')
+        synthetic_demo = data_mode == 'synthetic'
+        if synthetic_demo and env.get('DEMO_ACKNOWLEDGEMENT') != 'synthetic-only-no-real-health-data':
+            raise RuntimeError('Synthetic demo acknowledgement is required')
         origins = tuple(x.strip() for x in env.get('CORS_ORIGINS', '' if production else
             'http://localhost:5173,http://127.0.0.1:5173').split(',') if x.strip())
         if not origins:
@@ -63,14 +70,21 @@ class SecuritySettings:
         database_url = env.get('DATABASE_URL', 'sqlite:///./migramind.db')
         try:
             database = make_url(database_url)
+            if synthetic_demo:
+                from pathlib import Path
+                name = database.database or ''
+                if 'DATABASE_URL' not in env or not (
+                    (database.get_backend_name() == 'sqlite' and Path(name).name == 'migramind-synthetic-demo.sqlite') or
+                    (database.get_backend_name() == 'postgresql' and name.endswith('_synthetic_demo'))):
+                    raise ValueError()
             if production and (database.get_backend_name() != 'postgresql' or
                     not database.host or not database.database or
                     database.query.get('sslmode') != 'verify-full'):
                 raise ValueError()
         except Exception:
             # Never interpolate a database URL/driver exception containing credentials.
-            raise RuntimeError('Invalid DATABASE_URL; production requires explicit PostgreSQL with sslmode=verify-full') from None
-        return cls(production, origins, hosts, ttl, database_url)
+            raise RuntimeError('Invalid DATABASE_URL; production requires PostgreSQL TLS verification; demo requires a dedicated synthetic-demo database name') from None
+        return cls(production, origins, hosts, ttl, database_url, synthetic_demo)
 
 
 class PrivateBoundary:
