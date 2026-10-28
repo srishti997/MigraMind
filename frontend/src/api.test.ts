@@ -1,7 +1,27 @@
 // @vitest-environment jsdom
 import {afterEach,expect,test,vi} from 'vitest';
 import {api,clearAuthentication} from './api';
+import {validateProductionApiOrigin} from './securityConfig';
 afterEach(()=>{clearAuthentication();vi.restoreAllMocks()});
+
+test('health requests disable browser caching and referrer disclosure',async()=>{
+ const fetcher=vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response('[]'));
+ await api('episodes');
+ expect(fetcher.mock.calls[0][1]).toMatchObject({credentials:'include',cache:'no-store',referrerPolicy:'no-referrer'});
+});
+
+test('unexpected server error bodies are not displayed',async()=>{
+ vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify({detail:'Synthetic private database value'}),{status:500}));
+ await expect(api('episodes')).rejects.toThrow('Could not save or load your data');
+});
+
+test('production API configuration rejects insecure and credential-bearing URLs',()=>{
+ for(const value of ['http://example.test','https://user:secret@example.test','https://example.test/path','https://example.test?key=secret','//example.test']){
+  expect(()=>validateProductionApiOrigin(value)).toThrow('exact HTTPS origin');
+ }
+ expect(()=>validateProductionApiOrigin('')).not.toThrow();
+ expect(()=>validateProductionApiOrigin('https://api.example.test')).not.toThrow();
+});
 test('discard in-flight health responses after session changes',async()=>{
  let resolve!:(response:Response)=>void;
  vi.spyOn(globalThis,'fetch').mockImplementation(()=>new Promise<Response>(done=>{resolve=done}));

@@ -2,6 +2,8 @@
 
 Local prototype only. Do not deploy publicly or enter real health records yet.
 
+Sprint 14 tightens this policy without authorizing production use: see [SECURITY_PRIVACY_AUDIT.md](SECURITY_PRIVACY_AUDIT.md). Invalid environment/origin/host/TTL settings fail startup. Production additionally requires explicit HTTPS origins and hosts, a PostgreSQL URL with `sslmode=verify-full`, and HTTPS as seen by ASGI. API docs are disabled in production. Generic errors and security headers cover normal and failed requests; field validation avoids echoing user-supplied names. Local loopback HTTP/SQLite remain supported. These changes do not implement encryption at rest, shared rate limiting, staff research access, consent enrollment or institutional approval.
+
 ## Architecture
 
 - `app/auth.py` handles registration, login, logout, account settings/deletion and consent. Passwords use Argon2id (64 MiB, three passes, two lanes), with automatic rehash on successful login when parameters change. Passwords are 12–128 characters at registration. No default accounts or passwords exist.
