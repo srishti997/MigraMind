@@ -127,6 +127,7 @@ def register_research_quality(app,db,Daily,Revision,Episode,Wellness,require_use
         mapping={r.record_id:uuid4().hex for r in rows}
         journal=[{**r.model_dump(mode='json'),'account_key':'local-account','record_id':mapping[r.record_id]} for r in rows]
         return JSONResponse({'export_schema':'migramind-research-preparation/1','exported_at':now.isoformat(),
+            'synthetic_demo':bool(getattr(app.state, 'synthetic_demo', False)),
             'provenance':{'collection_schema':'daily-checkins/migration-008','quality_policy':'completed-local-days/v1',
                 'history':'application_revision_journal','independently_reviewed':False},
             'clinically_validated':False,'automatically_deidentified':False,

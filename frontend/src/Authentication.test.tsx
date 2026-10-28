@@ -5,9 +5,24 @@ import {cleanup,render,screen,fireEvent,waitFor,act} from '@testing-library/reac
 import {Authentication} from './Authentication';
 import {AccountSettings} from './AccountSettings';
 import {clearAuthentication} from './api';
-vi.mock('./main',()=>({App:()=> <div>Private workspace</div>}));
+vi.mock('./main',()=>({App:({onLogout}:{onLogout:()=>void})=> <div>Private workspace<button onClick={onLogout}>Test sign out</button></div>}));
 afterEach(()=>{cleanup();vi.useRealTimers();vi.restoreAllMocks();vi.unstubAllGlobals();clearAuthentication()});
 const account={id:1,email:'synthetic@example.test',display_name:'Synthetic',created_at:'2026-10-19T00:00:00Z'};
+
+test('server demo mode labels the workspace and disables personal registration',async()=>{
+ vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify({user:null,demo_mode:true,csrf_token:'synthetic-token'})));
+ render(<Authentication/>);await screen.findByRole('button',{name:'Sign in'});
+ expect(screen.getByRole('note')).toHaveTextContent('Synthetic demonstration');
+ expect(screen.getByLabelText('Email')).toHaveValue('demo@synthetic.example.test');
+ expect(screen.getByLabelText('Email')).toHaveAttribute('readOnly');
+ expect(screen.queryByRole('button',{name:'Create a new account'})).toBeNull();
+});
+
+test('synthetic warning remains visible in the authenticated workspace',async()=>{
+ vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify({user:account,demo_mode:true,csrf_token:'synthetic-token'})));
+ render(<Authentication/>);await screen.findByText('Private workspace');
+ expect(screen.getByRole('note')).toHaveTextContent('Do not enter real health information');
+});
 test('sign-in keeps health screens gated and emergency calling directly accessible',async()=>{
  const fetcher=vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify({user:null,csrf_token:'test-csrf'})));
  render(<Authentication/>);
@@ -60,4 +75,21 @@ test('blocked cross-tab messaging does not blank an authenticated workspace',asy
  vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify({user:account,csrf_token:'test-csrf'})));
  render(<Authentication/>);
  expect(await screen.findByText('Private workspace')).toBeVisible();
+});
+
+
+test('logout waits for a fresh anonymous CSRF session before showing sign-in',async()=>{
+ let complete:(value:Response)=>void=()=>{};
+ let loggedOut=false;
+ vi.spyOn(globalThis,'fetch').mockImplementation(async input=>{
+  if(String(input).endsWith('auth/logout')){loggedOut=true;return new Response(null,{status:204})}
+  if(loggedOut)return new Promise<Response>(resolve=>{complete=resolve});
+  return new Response(JSON.stringify({user:account,csrf_token:'old-token'}));
+ });
+ render(<Authentication/>);await screen.findByText('Private workspace');
+ fireEvent.click(screen.getByRole('button',{name:'Test sign out'}));
+ await screen.findByRole('status');
+ expect(screen.queryByRole('button',{name:'Sign in'})).toBeNull();
+ await act(async()=>{complete(new Response(JSON.stringify({user:null,csrf_token:'new-token'})))});
+ expect(await screen.findByRole('button',{name:'Sign in'})).toBeVisible();
 });

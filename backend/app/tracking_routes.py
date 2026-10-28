@@ -91,6 +91,7 @@ def register_tracking(app, db, Episode, Wellness, EarlySymptom, Contact, Profile
         def records(model):return [{col.name:getattr(row,col.name) for col in model.__table__.columns if col.name not in ('active_slot','owner_id')} for row in owned(s,model,user).order_by(model.id).all()]
         from .main import DailyCheckin, CheckinRevision
         data={'schema_version':5,'exported_at':datetime.now(timezone.utc).isoformat(),
+            'synthetic_demo':bool(getattr(app.state, 'synthetic_demo', False)),
             'account':{'email':user.email,'display_name':user.display_name,'created_at':user.created_at},'sharing_consents':records(SharingConsent),
             'scope':'Current account only. Unclaimed legacy records excluded. Missing values are unknown. UTC timestamps with original IANA timezones where recorded; legacy dates have no inferred timezone.',
             'daily_checkins':records(DailyCheckin),'checkin_revisions':records(CheckinRevision),

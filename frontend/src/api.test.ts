@@ -4,6 +4,15 @@ import {api,clearAuthentication} from './api';
 import {validateProductionApiOrigin} from './securityConfig';
 afterEach(()=>{clearAuthentication();vi.restoreAllMocks()});
 
+test('synthetic mode blocks health writes before any request body is uploaded',async()=>{
+ const fetcher=vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify({demo_mode:true,csrf_token:'synthetic-token'})));
+ await api('auth/session');fetcher.mockClear();
+ await expect(api('episodes','POST',{notes:'Synthetic blocked text'})).rejects.toThrow('read-only');
+ expect(fetcher).not.toHaveBeenCalled();
+ fetcher.mockResolvedValue(new Response(JSON.stringify({synthetic_demo:true})));
+ await api('v1/research-export','POST',{confirmed:true});expect(fetcher).toHaveBeenCalledTimes(1);
+});
+
 test('health requests disable browser caching and referrer disclosure',async()=>{
  const fetcher=vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response('[]'));
  await api('episodes');

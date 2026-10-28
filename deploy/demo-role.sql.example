@@ -1,0 +1,16 @@
+-- REVIEWED PLACEHOLDERS ONLY: run as the owner AFTER migrations and provisioning.
+-- Replace both the dedicated database name and migramind_demo_runtime role.
+-- Run while connected to that dedicated database, never a shared application DB.
+-- Do not grant membership in the database owner/migration role to this role.
+REVOKE ALL ON DATABASE migramind_synthetic_demo FROM PUBLIC;
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC;
+REVOKE ALL ON ALL TABLES IN SCHEMA public FROM migramind_demo_runtime;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM migramind_demo_runtime;
+GRANT CONNECT ON DATABASE migramind_synthetic_demo TO migramind_demo_runtime;
+GRANT USAGE ON SCHEMA public TO migramind_demo_runtime;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO migramind_demo_runtime;
+GRANT INSERT, UPDATE, DELETE ON login_sessions TO migramind_demo_runtime;
+GRANT USAGE, SELECT ON SEQUENCE login_sessions_id_seq TO migramind_demo_runtime;
+-- Health table writes, schema changes and provisioning remain owner-only.
+-- Verify default/public privileges, role membership and row/table grants independently.
