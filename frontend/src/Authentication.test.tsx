@@ -93,3 +93,18 @@ test('logout waits for a fresh anonymous CSRF session before showing sign-in',as
  await act(async()=>{complete(new Response(JSON.stringify({user:null,csrf_token:'new-token'})))});
  expect(await screen.findByRole('button',{name:'Sign in'})).toBeVisible();
 });
+
+
+test('reconnect clears stale errors and gates the form until a fresh session arrives',async()=>{
+ let finish:(value:Response)=>void=()=>{};
+ vi.spyOn(globalThis,'fetch').mockRejectedValueOnce(new Error('Synthetic offline condition'))
+  .mockImplementationOnce(()=>new Promise<Response>(resolve=>{finish=resolve}));
+ render(<Authentication/>);await screen.findByRole('alert');
+ fireEvent.click(screen.getByRole('button',{name:'Retry connection'}));
+ await screen.findByRole('status');
+ expect(screen.queryByRole('alert')).toBeNull();
+ expect(screen.queryByRole('button',{name:'Sign in'})).toBeNull();
+ await act(async()=>{finish(new Response(JSON.stringify({user:null,csrf_token:'synthetic-reconnected-token'})))});
+ expect(await screen.findByRole('button',{name:'Sign in'})).toBeVisible();
+ expect(screen.queryByRole('alert')).toBeNull();
+});
