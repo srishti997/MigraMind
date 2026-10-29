@@ -406,3 +406,14 @@ th, td { text-align: left; padding: 10px; border-bottom: 1px solid var(--border)
 .daily-checkin input, .daily-checkin select, .daily-checkin textarea { width: 100%; min-width: 0; box-sizing: border-box; }
 .daily-checkin dd { overflow-wrap: anywhere; }
 .daily-checkin .actions { flex-wrap: wrap; }
+
+/* Product navigation and synthetic-tour controls use the existing semantic palette. */
+.skip-link{position:fixed;left:12px;top:12px;transform:translateY(-180%);z-index:1000;background:var(--surface,#fff);color:var(--text,#24372e);padding:14px;border:2px solid currentColor;border-radius:8px}
+.skip-link:focus{transform:none}
+#page-content:focus{outline:none}
+.page-heading h1:focus-visible{outline:3px solid var(--primary);outline-offset:6px;border-radius:4px}
+.demo-guide{border:1px solid var(--control-border);border-radius:var(--radius-sm);padding:20px;margin-block:20px;min-width:0;overflow-wrap:anywhere}
+.demo-guide h2{font-size:1.2rem;margin-top:0}.demo-guide p,.demo-guide li{line-height:1.6}
+.demo-guide summary{cursor:pointer;padding-block:12px;min-height:44px;box-sizing:border-box}
+.demo-guide-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px}.demo-guide-actions button{min-height:44px}
+@media(max-width:600px){.demo-guide{padding:16px}.demo-guide-actions{display:grid}.demo-guide-actions button{width:100%}}
