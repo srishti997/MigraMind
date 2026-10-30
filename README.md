@@ -1,6 +1,10 @@
 # MigraMind
 
-Mobile-first migraine tracking and caregiver preferences. React + TypeScript + Vite + Tailwind CSS, FastAPI, SQLAlchemy, Alembic and PostgreSQL. All seeded records are synthetic. This is an account-isolated local prototype with cookie authentication. Do not host publicly or enter real health information before production security and privacy review. See [Sprint 6 authentication and privacy](docs/authentication-privacy.md) for current behavior and limitations; older sprint verification below is historical.
+MigraMind is an account-isolated migraine diary and research-readiness prototype built with React/TypeScript, FastAPI, SQLAlchemy and Alembic, with SQLite locally and PostgreSQL configuration support. It combines explicit daily observations, revision history, descriptive insights and user-controlled support preferences with a leakage-safe offline research baseline. No clinically validated forecasting model or migraine risk score is served; synthetic results demonstrate software behavior only.
+
+For interviews and reviews, start with the [architecture and diagram](docs/PROJECT_ARCHITECTURE.md), [research methodology and five-minute demo](docs/RESEARCH_PRESENTATION.md), [two-minute explanation and interview questions](docs/INTERVIEW_PREPARATION.md), and [claim-to-source evidence matrix](docs/PROJECT_EVIDENCE_MATRIX.md). The [product-quality review](docs/PRODUCT_QUALITY_REVIEW.md) records prior software verification and remaining usability limits.
+
+All seeded records are synthetic. Use a dedicated local synthetic demonstration; do not enter real health information. Hosted operation requires the unresolved reviews and checks in [deployment readiness](docs/DEPLOYMENT_READINESS.md). See [authentication and privacy](docs/authentication-privacy.md) for account behavior and limitations; older sprint verification below is historical.
 
 ## Run locally (PowerShell)
 
