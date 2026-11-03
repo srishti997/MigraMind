@@ -7,5 +7,28 @@ export type Insights={data_status:string,headache_days:number|null,episode_count
 export const deviceZone=()=>Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';
 export function localInput(value?:string|null){if(!value)return '';const d=new Date(value);return `${localDate(d)}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;}
 export function timestamp(value:FormDataEntryValue|null,original?:string|null){if(!value)return null;const normalized=String(value).length===16?String(value)+':00':String(value);if(original&&normalized===localInput(original))return new Date(original).toISOString();const text=String(value),d=new Date(text);if(!Number.isFinite(d.getTime())||localInput(d.toISOString()).slice(0,16)!==text.slice(0,16))throw new Error('This local time is invalid in your device timezone. Choose a valid time.');return d.toISOString();}
-export function episodePayload(form:HTMLFormElement,original?:Episode){const f=new FormData(form);const number=(key:string)=>f.get(key)===''||!f.has(key)?null:Number(f.get(key));const names=f.getAll('medication_name'),times=f.getAll('medication_time');const medications=names.flatMap((name,i)=>{if(!name&&!times[i])return [];if(!name||!times[i])throw new Error('Medication entries need both a name and time taken.');return [{name:String(name),taken_at:timestamp(times[i],original?.medications?.find(m=>m.name===String(name)&&localInput(m.taken_at).slice(0,16)===String(times[i]).slice(0,16))?.taken_at)}]});
-return {date:f.get('date'),started_at:timestamp(f.get('started_at'),original?.started_at),ended_at:timestamp(f.get('ended_at'),original?.ended_at),timezone_name:f.get('started_at')?(original?.started_at&&localInput(original.started_at).slice(0,16)===String(f.get('started_at')).slice(0,16)?original.timezone_name||deviceZone():deviceZone()):null,severity:number('severity'),duration:number('duration'),trigger:f.get('trigger')||'Unknown',notes:f.get('notes')||'',pain_location:f.get('pain_location')||'',symptoms:String(f.get('symptoms')||'').split(',').map(s=>s.trim()).filter(Boolean),functional_impact:f.get('functional_impact')||'',medications,attack_session_id:number('attack_session_id')};}
+export function episodePayload(form:HTMLFormElement,original?:Episode){
+ const f=new FormData(form);const number=(key:string)=>f.get(key)===''||!f.has(key)?null:Number(f.get(key));
+ const started=timestamp(f.get('started_at'),original?.started_at),ended=timestamp(f.get('ended_at'),original?.ended_at);
+ const now=Date.now();
+ if(started&&new Date(started).getTime()>now)throw new Error('Episode start cannot be in the future.');
+ if(ended&&(!started||new Date(ended).getTime()<=new Date(started).getTime()))throw new Error('Episode end must be after start.');
+ if(ended&&new Date(ended).getTime()>now)throw new Error('Episode end cannot be in the future.');
+ const legacyZone=original?.timezone_name||null;
+ const today=legacyZone?new Intl.DateTimeFormat('en-CA',{timeZone:legacyZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(now)):new Date(now).toISOString().slice(0,10);
+ if(!started&&f.get('date')&&String(f.get('date'))>today)throw new Error('Episode date cannot be in the future.');
+ const names=f.getAll('medication_name'),times=f.getAll('medication_time');
+ const medications=names.flatMap((name,i)=>{
+  if(!name&&!times[i])return [];
+  if(!name||!times[i])throw new Error('Medication entries need both a name and time taken.');
+  const taken=timestamp(times[i],original?.medications?.find(m=>m.name===String(name)&&localInput(m.taken_at).slice(0,16)===String(times[i]).slice(0,16))?.taken_at);
+  if(taken&&new Date(taken).getTime()>now)throw new Error('Medication observation cannot be in the future.');
+  return [{name:String(name),taken_at:taken}];
+ });
+ const severity=number('severity'),duration=started&&ended?null:number('duration');
+ if(severity!==null&&(!Number.isInteger(severity)||severity<0||severity>10))throw new Error('Severity must be a whole number from 0 to 10.');
+ if(duration!==null&&(!Number.isInteger(duration)||duration<0||duration>525600))throw new Error('Duration must be a whole number from 0 to 525600 minutes.');
+ if(started&&ended&&(new Date(ended).getTime()-new Date(started).getTime())/60000>525600)throw new Error('Episode interval exceeds the supported duration.');
+ return {date:started?null:f.get('date'),started_at:started,ended_at:ended,timezone_name:started?(original?.started_at&&localInput(original.started_at).slice(0,16)===String(f.get('started_at')).slice(0,16)?original.timezone_name||deviceZone():deviceZone()):legacyZone,
+  severity,duration,trigger:f.get('trigger')||'Unknown',notes:f.get('notes')||'',pain_location:f.get('pain_location')||'',symptoms:String(f.get('symptoms')||'').split(',').map(s=>s.trim()).filter(Boolean),functional_impact:f.get('functional_impact')||'',medications,attack_session_id:number('attack_session_id')};
+}

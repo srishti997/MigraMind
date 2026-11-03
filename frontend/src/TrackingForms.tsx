@@ -4,14 +4,15 @@ import {deviceZone,localInput} from './tracking';
 import {localDate} from './utils';
 import type {AttackSession} from './assistance';
 export function EpisodeFields({entry,date,sessions}:{entry?:Episode,date:string,sessions:AttackSession[]}){
+ const [end,setEnd]=useState(localInput(entry?.ended_at));
  const [meds,setMeds]=useState((entry?.medications||[]).map((m,i)=>({...m,key:i})));
  return <><p className="helper">Quick entry: start time only. Add other details when you feel ready. Times use {deviceZone()} and are saved in UTC.</p>
  {entry&&!entry.started_at?<label>Legacy date · exact time unknown<input autoFocus required type="date" name="date" defaultValue={entry.date}/></label>:<input type="hidden" name="date" value={entry?.date||date}/>}
  <label>Attack started<input autoFocus={!entry||!!entry.started_at} type="datetime-local" step="1" name="started_at" required={!entry||!!entry.started_at} defaultValue={entry?.started_at?localInput(entry.started_at):entry?'':`${date}T${localInput(new Date().toISOString()).split('T')[1]}`}/></label>
  <label>Pain severity · optional (0–10)<input type="number" min="0" max="10" name="severity" defaultValue={entry?.severity??''} placeholder="Not recorded"/></label>
  <details className="detailed-entry" open={!!entry}><summary>Optional details · now or later</summary>
- <label>Attack ended · leave blank if unknown<input type="datetime-local" step="1" name="ended_at" defaultValue={localInput(entry?.ended_at)}/></label>
- <label>Duration in minutes · if exact end is unknown<input type="number" name="duration" min="0" max="525600" defaultValue={entry?.duration??''}/><small>Start and end times take precedence when both are known.</small></label>
+ <label>Attack ended · leave blank if unknown<input type="datetime-local" step="1" name="ended_at" value={end} onChange={e=>setEnd(e.target.value)}/></label>
+ <label>Duration in minutes · if exact end is unknown<input type="number" name="duration" disabled={!!end} min="0" max="525600" defaultValue={entry?.duration??''}/><small>Start and end times determine duration when both are known.</small></label>
  <label>Pain location<input name="pain_location" maxLength={200} defaultValue={entry?.pain_location} placeholder="In your own words"/></label>
  <label>Symptoms · separate with commas<input name="symptoms" maxLength={3000} defaultValue={entry?.symptoms?.join(', ')} placeholder="For example: nausea, light sensitivity"/></label>
  <label>Impact on daily activities<select name="functional_impact" defaultValue={entry?.functional_impact||''}><option value="">Not recorded</option>{['No disruption','Some activities limited','Most activities limited','Unable to do usual activities'].map(v=><option key={v}>{v}</option>)}</select></label>

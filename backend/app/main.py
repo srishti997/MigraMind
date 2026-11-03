@@ -9,7 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from .security import SecuritySettings, PrivateBoundary
 from .deployment import database_ready, DemoBoundary, operation_event
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
+from .phone import dialable_phone
 from sqlalchemy import create_engine, event, String, Integer, Text, CheckConstraint, JSON, Boolean, ForeignKey, UniqueConstraint
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker, Session
@@ -147,7 +148,12 @@ class ContactIn(BaseModel):
     model_config=ConfigDict(extra="forbid")
     name: str = Field(min_length=1, max_length=100)
     relationship: str = Field(max_length=100)
-    phone: str = Field(min_length=3, max_length=32, pattern=r'^\+?[0-9 ()-]+$')
+    phone: str = Field(min_length=1, max_length=32)
+    @field_validator('phone')
+    @classmethod
+    def phone_syntax(cls,value):
+        dialable_phone(value)
+        return value
 class ProfileIn(BaseModel):
     model_config=ConfigDict(extra="forbid")
     name: str = Field(min_length=1, max_length=100)
