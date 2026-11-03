@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, date
 import math
 from .contract import Bundle, Snapshot, aware, zone
 
-PIPELINE_VERSION='migraine-onset-24h/v1'
+PIPELINE_VERSION='migraine-onset-24h/v1.1'
 HORIZON=timedelta(hours=24)
 LABEL_LAG=timedelta(hours=24)
 FEATURE_NAMES=('episode_onsets_7d','episode_onsets_30d','hours_since_observed_onset',
@@ -85,8 +85,8 @@ def point_features(snapshot:Snapshot,t:datetime,timezone_name:str):
     return features,None
 
 
-def covered(bundle:Bundle,start:datetime,end:datetime):
-    intervals=sorted([c for c in bundle.coverage if c.complete and aware(c.start_at)<end and aware(c.end_at)>start],key=lambda c:c.start_at)
+def covered(bundle:Bundle,start:datetime,end:datetime,as_of:datetime):
+    intervals=sorted([c for c in bundle.coverage if c.complete and aware(c.confirmed_at)<=as_of and aware(c.start_at)<end and aware(c.end_at)>start],key=lambda c:c.start_at)
     cursor=start;confirmation=None
     for c in intervals:
         left,right=aware(c.start_at),aware(c.end_at)
@@ -108,9 +108,10 @@ def build_dataset(bundle:Bundle,start:datetime,end:datetime,timezone_name='Asia/
         if not known:skip('no_point_in_time_snapshot');t+=HORIZON;continue
         features,reason=point_features(known[-1],t,timezone_name)
         if reason:skip(reason);t+=HORIZON;continue
-        horizon=t+HORIZON;confirmation=covered(bundle,t,horizon)
+        horizon=t+HORIZON;freeze=horizon+LABEL_LAG
+        confirmation=covered(bundle,t,horizon,freeze)
         if confirmation is None:skip('unconfirmed_observation_window');t+=HORIZON;continue
-        mature=max(horizon+LABEL_LAG,confirmation)
+        mature=freeze
         label_snapshots=[s for s in bundle.snapshots if aware(s.exported_at)>=mature]
         if not label_snapshots:skip('label_not_mature');t+=HORIZON;continue
         label_snapshot=label_snapshots[0]
@@ -126,19 +127,20 @@ def build_dataset(bundle:Bundle,start:datetime,end:datetime,timezone_name='Asia/
     return rows,excluded
 
 
-def chronological_split(rows,train_fraction=.6,validation_fraction=.2):
+def chronological_split(rows,*,grid_start,grid_end,train_fraction=.6,validation_fraction=.2):
+    """Boundaries belong to the declared grid, never outcome-filtered rows."""
     if not 0<train_fraction<1 or not 0<validation_fraction<1 or train_fraction+validation_fraction>=1:
         raise ValueError('Invalid split fractions')
+    start,end=aware(grid_start),aware(grid_end)
+    if start>=end:raise ValueError('Invalid prediction grid')
+    n=(end-start+HORIZON-timedelta(microseconds=1))//HORIZON
+    validation_at=start+int(n*train_fraction)*HORIZON
+    test_at=start+int(n*(train_fraction+validation_fraction))*HORIZON
     ordered=sorted(rows,key=lambda r:r.prediction_at)
     if len({r.prediction_at for r in ordered})!=len(ordered):raise ValueError('Duplicate prediction times')
-    if any(r.snapshot_at>=r.prediction_at or r.horizon_end!=r.prediction_at+HORIZON or r.label_available_at<r.horizon_end for r in ordered):
+    if any(r.prediction_at<start or r.prediction_at>=end or (r.prediction_at-start)%HORIZON!=timedelta(0) or
+           r.snapshot_at>=r.prediction_at or r.horizon_end!=r.prediction_at+HORIZON or r.label_available_at<r.horizon_end for r in ordered):
         raise ValueError('Invalid point-in-time example')
-    a=int(len(ordered)*train_fraction);b=int(len(ordered)*(train_fraction+validation_fraction))
-    train,validation,test=ordered[:a],ordered[a:b],ordered[b:]
-    if validation:
-        boundary=validation[0].prediction_at
-        train=[r for r in train if r.horizon_end<boundary and r.label_available_at<boundary]
-    if test:
-        boundary=test[0].prediction_at
-        validation=[r for r in validation if r.horizon_end<boundary and r.label_available_at<boundary]
-    return {'train':train,'validation':validation,'test':test}
+    return {'train':[r for r in ordered if r.prediction_at<validation_at and r.horizon_end<validation_at and r.label_available_at<validation_at],
+        'validation':[r for r in ordered if validation_at<=r.prediction_at<test_at and r.horizon_end<test_at and r.label_available_at<test_at],
+        'test':[r for r in ordered if r.prediction_at>=test_at]}

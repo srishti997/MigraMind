@@ -5,6 +5,15 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pydantic import BaseModel, Field, AwareDatetime, field_validator, model_validator, ConfigDict
 
 ShortText = Annotated[str, Field(min_length=1, max_length=100)]
+
+def validate_episode_times(start, end, now):
+    """Shared write/review policy; never repairs or infers historical timestamps."""
+    start=start.astimezone(timezone.utc)
+    if start>now:raise ValueError('Episode start cannot be in the future')
+    if end is not None:
+        end=end.astimezone(timezone.utc)
+        if end<=start:raise ValueError('Episode end must be after start')
+        if end>now:raise ValueError('Episode end cannot be in the future')
 def valid_zone(value):
     try: ZoneInfo(value)
     except (ZoneInfoNotFoundError, ValueError): raise ValueError('Use a valid IANA timezone')
@@ -16,8 +25,8 @@ class Medication(BaseModel):
 class EpisodeIn(BaseModel):
     model_config = ConfigDict(extra='forbid')
     date: Date | None = None
-    severity: int | None = Field(default=None, ge=0, le=10)
-    duration: int | None = Field(default=None, ge=0, le=525600)
+    severity: int | None = Field(default=None, ge=0, le=10, strict=True)
+    duration: int | None = Field(default=None, ge=0, le=525600, strict=True)
     trigger: str = Field(default='Unknown', max_length=100)
     notes: str = Field(default='', max_length=3000)
     started_at: AwareDatetime | None = None
@@ -33,11 +42,21 @@ class EpisodeIn(BaseModel):
     def zone(cls,v): return valid_zone(v) if v else v
     @model_validator(mode='after')
     def chronology(self):
+        now=datetime.now(timezone.utc)
         if self.started_at:
             if not self.timezone_name: raise ValueError('Timezone is required for timed entries')
-            if self.ended_at and self.ended_at < self.started_at: raise ValueError('End must not precede start')
+            validate_episode_times(self.started_at,self.ended_at,now)
+            if self.date and self.date!=self.started_at.astimezone(ZoneInfo(self.timezone_name)).date():
+                raise ValueError('Date must match onset in the recorded timezone')
+            if self.ended_at:
+                minutes=round((self.ended_at-self.started_at).total_seconds()/60)
+                if (self.ended_at-self.started_at).total_seconds()>525600*60 or (self.duration is not None and self.duration!=minutes):
+                    raise ValueError('Duration must match the exact interval and supported range')
         elif not self.date or self.ended_at:
             raise ValueError('Provide a start timestamp or a legacy date; end requires start')
+        elif self.date>now.astimezone(ZoneInfo(self.timezone_name) if self.timezone_name else timezone.utc).date():
+            raise ValueError('Episode date cannot be in the future')
+        if any(m.taken_at>now for m in self.medications):raise ValueError('Medication observation cannot be in the future')
         return self
 
 def utc(value): return value.astimezone(timezone.utc).isoformat() if value else None

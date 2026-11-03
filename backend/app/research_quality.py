@@ -7,7 +7,7 @@ from fastapi import Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from .auth import owned
-from .tracking_schemas import valid_zone
+from .tracking_schemas import valid_zone, validate_episode_times
 from .prospective import episode_dates
 from research.revision_contract import DailyValues, RevisionBundle
 
@@ -44,7 +44,8 @@ def analyze(rows, episodes, wellness, revisions, zone_name, days, now):
                 flag('missing_episode_timestamp',e.date); valid_episodes.append(e); continue
             onset=datetime.fromisoformat(e.started_at)
             finish=datetime.fromisoformat(e.ended_at) if e.ended_at else None
-            if onset.tzinfo is None or (finish and (finish.tzinfo is None or finish <= onset or finish > now)) or onset > now: raise ValueError()
+            if onset.tzinfo is None or (finish and finish.tzinfo is None): raise ValueError()
+            validate_episode_times(onset,finish,now)
             if not finish: flag('incomplete_episode_interval',e.date)
             valid_episodes.append(e)
         except (ValueError,TypeError):

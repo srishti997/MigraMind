@@ -52,6 +52,7 @@ test('tracking forms, calendar and export use synthetic records',async({page})=>
 test.describe('daylight saving timestamp preservation',()=>{
  test.use({timezoneId:'America/New_York'});
  test('editing notes preserves the later repeated-hour instant',async({page})=>{
+  await page.clock.setFixedTime(new Date('2026-11-02T12:00:00Z')); // The saved fold-hour event is in the past.
   const original='2026-11-01T06:30:00+00:00'; // 01:30 EST, after the clock rolls back.
   let updated:any=null;
   const row={id:1,date:'2026-11-01',started_at:original,ended_at:null,timezone_name:'America/New_York',severity:4,duration:null,trigger:'Unknown',notes:'Synthetic DST entry',symptoms:[],medications:[]};

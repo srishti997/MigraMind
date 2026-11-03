@@ -8,11 +8,13 @@ from .evaluation import evaluate, choose_threshold
 
 def run(bundle,start,end,timezone_name='Asia/Kolkata',train=False):
     rows,excluded=build_dataset(bundle,start,end,timezone_name)
-    splits=chronological_split(rows)
+    splits=chronological_split(rows,grid_start=start,grid_end=end)
     reasons=eligibility(bundle,rows,splits)
     report={'pipeline_version':PIPELINE_VERSION,'status':'insufficient_data' if reasons else 'prepared',
         'clinical_validation':False,'model_served':False,'eligible_windows':len(rows),'excluded_windows':excluded,
         'split_counts':{name:len(part) for name,part in splits.items()},'blocking_reasons':reasons,
+        'split_policy':'fixed_candidate_grid_not_retained_rows',
+        'purged_windows':len(rows)-sum(len(part) for part in splits.values()),
         'feature_names':list(FEATURE_NAMES),'models':{},'threshold_rule':'Validation-only maximum sensitivity under FPR <= 0.10; never-alert tie preference.',
         'limitations':['Engineering sample gates are not clinical sufficiency.','No prospective or external validation.','Coverage and provenance require independent verification.','Calibration bins are descriptive, not a fitted calibration model.','Serial dependence and missing-not-at-random bias remain.']}
     if reasons or not train:return report,rows

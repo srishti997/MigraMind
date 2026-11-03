@@ -91,20 +91,20 @@ def fake_rows(n=210):
         {k:float(i%8) if k=='previous_stress' else None for k in FEATURE_NAMES},start+i*HORIZON-timedelta(minutes=1)) for i in range(n)]
 
 def test_chronological_splits_purge_horizons_and_label_availability():
-    rows=fake_rows();parts=chronological_split(list(reversed(rows)))
+    rows=fake_rows();parts=chronological_split(list(reversed(rows)),grid_start=rows[0].prediction_at,grid_end=rows[-1].horizon_end)
     train,val,test=parts['train'],parts['validation'],parts['test']
     assert train and val and test
     assert max(r.label_available_at for r in train)<min(r.prediction_at for r in val)
     assert max(r.horizon_end for r in val)<min(r.prediction_at for r in test)
     assert max(r.label_available_at for r in val)<min(r.prediction_at for r in test)
-    with pytest.raises(ValueError):chronological_split(rows+[rows[0]])
+    with pytest.raises(ValueError):chronological_split(rows+[rows[0]],grid_start=rows[0].prediction_at,grid_end=rows[-1].horizon_end)
 
 def test_synthetic_provenance_and_insufficient_data_block_training():
     b=fixture_bundle();t=stamp('2026-01-03T12:00Z')
     report,_=run(b,t,t+HORIZON,'UTC',train=True)
     assert report['status']=='insufficient_data' and report['models']=={}
     assert 'real_longitudinal_provenance_required' in report['blocking_reasons']
-    rows=fake_rows();reasons=eligibility(b,rows,chronological_split(rows))
+    rows=fake_rows();reasons=eligibility(b,rows,chronological_split(rows,grid_start=rows[0].prediction_at,grid_end=rows[-1].horizon_end))
     assert 'real_longitudinal_provenance_required' in reasons # Even a large synthetic fixture cannot pass.
 
 def test_historical_frequency_uses_training_labels_only():
