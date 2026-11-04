@@ -46,6 +46,8 @@ Apply the [readiness gate](RESEARCH_READINESS_GATE.md) before any future study. 
 
 ## Five-minute technical demonstration
 
+The current [portfolio walkthrough](PORTFOLIO_READINESS.md#five-minute-demonstration), reviewed 2026-11-04, includes the actual descriptive Insights screen, read-only form affordances and a research shortcut that focuses its panel. The table below is the historical Sprint 17 sequence; use the current walkthrough for a live presentation.
+
 Prerequisite: use an already prepared dedicated local synthetic target and matching synthetic frontend under the [operations runbook](OPERATIONS_RUNBOOK.md). Do not provision over existing data. Do not type personal health details, call/SMS anyone, upload downloads or train during the presentation. If no demo is running, walk through source/documents rather than imply a live deployment.
 
 | Time | Action and narration |
