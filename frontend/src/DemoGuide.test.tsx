@@ -17,3 +17,9 @@ test('research and daily status remain separate explicit tour actions',()=>{
  fireEvent.click(screen.getByRole('button',{name:'Review research features'}));
  expect(navigate.mock.calls).toEqual([['Daily status'],['Overview']]);
 });
+
+test('descriptive insights have a separate tour destination from forecasting research',()=>{
+ const navigate=vi.fn();render(<DemoGuide onNavigate={navigate}/>);
+ fireEvent.click(screen.getByRole('button',{name:'Explore descriptive insights'}));
+ expect(navigate).toHaveBeenCalledWith('Insights');
+});

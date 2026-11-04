@@ -2,6 +2,10 @@
 
 Review date: 2026-10-29. Branch: `feat/product-quality-demo`, starting from merged Sprint 15 (`88cf786`). No hosted deployment, recruitment or real health-data collection is authorized or performed. The user separately authorized committing the reviewed Sprint 16 files, pushing the feature branch and opening a PR only after final checks pass; merge and deployment remain unauthorized. All test records are fictional. Backend behavior, migrations and research eligibility policies are unchanged.
 
+## Subsequent portfolio review
+
+The [2026-11-04 readiness review](PORTFOLIO_READINESS.md) records current checks and closes the saved-record read-only affordances left open here. This document retains the historical Sprint 16 evidence and walkthrough; use the new timed instructions for presentation.
+
 ## Review scope and findings
 
 | Journey | Finding and response |
