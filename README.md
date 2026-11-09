@@ -79,7 +79,7 @@ node node_modules/vitest/vitest.mjs run --maxWorkers=1
 npm.cmd audit
 ```
 
-The [readiness review](docs/PORTFOLIO_READINESS.md) records current backend, frontend, browser, demo, both production-build and dependency results, including failures and execution limits. Browser suites require **disposable, separately migrated targets**; the default Playwright URL alone does not prove the database is disposable. Do not run mutation suites against a personal or reused instance. CI and a checked-in disposable test harness remain follow-up work.
+The [readiness review](docs/PORTFOLIO_READINESS.md) records portfolio verification and its execution limits. The [CI workflow and local browser harness](docs/CI.md) run backend/frontend tests, both production builds and the existing editable browser suite using disposable data. Browser suites require **disposable, separately migrated targets**; the default Playwright URL alone does not prove the database is disposable. Use the harness rather than running mutation suites against a personal or reused instance. The dedicated built-demo browser suite remains a separate check because it requires provisioning.
 
 ## Source map and limits
 

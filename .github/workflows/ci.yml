@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  backend:
+    name: Backend and offline ML tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      APP_ENV: development
+      DATA_MODE: local
+      DATABASE_URL: sqlite://
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: backend/requirements-ml.lock.txt
+      - name: Install locked backend and ML dependencies
+        run: python -m pip install -r requirements-ml.lock.txt
+      - name: Check dependency compatibility
+        run: python -m pip check
+      - name: Run backend tests (including offline ML)
+        run: python -m pytest -q -ra
+
+  frontend:
+    name: Frontend tests and production builds
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      VITE_API_URL: ''
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install locked frontend dependencies
+        run: npm ci
+      - name: Run frontend tests
+        run: npm run test -- --maxWorkers=1
+      - name: Build local production bundle
+        env:
+          VITE_DATA_MODE: local
+        run: npm run build -- --outDir "$RUNNER_TEMP/migramind-local-dist"
+      - name: Build synthetic production bundle (no provisioning)
+        env:
+          VITE_DATA_MODE: synthetic
+        run: npm run build -- --outDir "$RUNNER_TEMP/migramind-synthetic-dist"
+
+  browser:
+    name: Isolated Chromium integration tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: backend/requirements.lock.txt
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install locked dependencies
+        run: |
+          python -m pip install -r backend/requirements.lock.txt
+          python -m pip check
+          npm ci --prefix frontend
+      - name: Install locked Playwright Chromium and system dependencies
+        working-directory: frontend
+        run: node node_modules/@playwright/test/cli.js install --with-deps chromium
+      - name: Run existing browser suite on a disposable local target
+        run: python scripts/ci_browser.py
