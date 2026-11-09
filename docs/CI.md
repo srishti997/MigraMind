@@ -109,6 +109,38 @@ daemon was available locally. Local Windows results and static
 workflow validation do not establish those hosted results. No clinical, research,
 deployment or accessibility claim follows from a green workflow.
 
+## PR #17 readiness regression
+
+The [first hosted browser job](https://github.com/srishti997/MigraMind/actions/runs/42602100867/job/129108825899)
+started both servers but timed out in the frontend readiness call. Its actual log
+contains Vite's styled URL, with escape sequences inside the port:
+
+```text
+http://127.0.0.1:\x1b[1m5173\x1b[22m/
+```
+
+The raw log did not contain the plain `http://127.0.0.1:5173/` startup marker.
+The helper consequently never reached its HTTP request. The fix removes ANSI SGR
+styling only when matching the startup log; it retains the owned-server marker,
+live-process check, HTTP 200 requirement, 60-second deadline and cleanup logic.
+No application or production setting is changed.
+
+This is not a proxy, binding or route mismatch. Both servers bind IPv4 loopback;
+the backend probe remains `/api/ready`, which returns 200 only for a ready database.
+Vite serves `/` with no configured base prefix. Functional tests verify that the
+frontend origin with and without a trailing slash both request `/`, and that
+`ProxyHandler({})` bypasses deliberately invalid uppercase/lowercase proxy settings.
+They also retain rejection of missing startup markers, exited processes and HTTP
+404/503 responses. The regression reproduces the original timeout before the fix,
+and the workflow now runs it before installing Chromium.
+
+Local validation on 2026-11-09: **4 readiness regression tests passed**, and the
+full isolated browser suite passed **21/21** with `FORCE_COLOR=1` using existing
+Windows Chrome on ports 18000/15173. Actionlint, Python syntax, documentation links
+and diff checks passed. The temporary database and servers were cleaned up.
+The hosted Ubuntu rerun still requires approval to publish this fix; no commit,
+push or workflow rerun was performed here.
+
 References: [Playwright's CI setup](https://playwright.dev/docs/ci-intro),
 [checkout](https://github.com/actions/checkout),
 [setup-python](https://github.com/actions/setup-python), and

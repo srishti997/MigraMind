@@ -3,6 +3,7 @@
 import argparse
 import os
 from pathlib import Path
+import re
 import shutil
 import signal
 import socket
@@ -35,7 +36,10 @@ def wait_ready(url, process, log_path, startup_marker):
             raise RuntimeError('A temporary verification server exited before readiness')
         # An unrelated server winning a port race must not satisfy readiness.
         # Check our own server's successful-bind log before requesting its URL.
-        if startup_marker not in log_path.read_text(encoding='utf-8', errors='replace'):
+        # Vite inserts ANSI styling inside the URL (notably around the port).
+        startup_log = re.sub(r'\x1b\[[0-9;]*m', '',
+                             log_path.read_text(encoding='utf-8', errors='replace'))
+        if startup_marker not in startup_log:
             time.sleep(.25)
             continue
         try:

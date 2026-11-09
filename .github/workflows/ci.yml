@@ -98,6 +98,8 @@ jobs:
           python -m pip install -r backend/requirements.lock.txt
           python -m pip check
           npm ci --prefix frontend
+      - name: Check readiness probe regressions
+        run: python -m unittest discover -s scripts -p test_ci_browser.py -v
       - name: Install locked Playwright Chromium and system dependencies
         working-directory: frontend
         run: node node_modules/@playwright/test/cli.js install --with-deps chromium
