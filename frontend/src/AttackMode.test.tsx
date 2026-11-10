@@ -10,11 +10,12 @@ const contacts=[{id:1,name:'Jamie Demo',relationship:'Partner',phone:'+91 99999 
 const profile={name:'Alex',support:'A quiet room',avoid:'Strong scents',communication:'Text me first'};
 let session:{id:number,started_at:string,ended_at:string|null}|null;
 let fail=false;
-beforeEach(()=>{session=null;fail=false;localStorage.clear();vi.stubGlobal('fetch',vi.fn(async(url:string,opts?:RequestInit)=>{
+let fixtureContacts=contacts;
+beforeEach(()=>{session=null;fail=false;fixtureContacts=contacts;localStorage.clear();vi.stubGlobal('fetch',vi.fn(async(url:string,opts?:RequestInit)=>{
  const path=url.replace('/api/','');
  if(fail&&path.startsWith('attack-sessions'))return {ok:false};
  let data:unknown=null;
- if(path==='contacts')data=contacts;
+ if(path==='contacts')data=fixtureContacts;
  if(path==='profile')data=profile;
  if(path==='episodes')data=[];
  if(path==='attack-sessions/current')data=session;
@@ -90,6 +91,30 @@ describe('attack assistance',()=>{
   expect(screen.getByRole('dialog')).toBeInTheDocument();
   const save=screen.getByRole('button',{name:'Save episode'});save.focus();await user.tab();expect(screen.getByRole('button',{name:'Close dialog'})).toHaveFocus();
   await user.keyboard('{Escape}');expect(screen.queryByRole('dialog')).not.toBeInTheDocument();expect(screen.getByRole('button',{name:'Log an episode'})).toHaveFocus();
+ });
+ it.each([
+  ['Trusted contacts','Set up a trusted contact'],
+  ['Caregiver profile','Review or edit outside Attack Mode'],
+ ])('focuses %s on navigation, including same-page handoffs, without changing ordinary exit focus',async(destination,action)=>{
+  fixtureContacts=[];
+  const user=userEvent.setup();render(<App/>);
+  await screen.findByRole('heading',{name:'A gentler day, Alex.'});
+  for(let visit=0;visit<2;visit++){
+   screen.getByRole('button',{name:'Enter Attack Mode'}).focus();await user.keyboard('{Enter}');
+   await waitFor(()=>expect(screen.getByRole('heading',{name:'One thing at a time.'})).toHaveFocus());
+   if(destination==='Caregiver profile')await user.click(screen.getByText('My support card',{exact:true}));
+   const navigate=await screen.findByRole('button',{name:action});navigate.focus();await user.keyboard('{Enter}');
+   const title=screen.getByRole('heading',{name:destination});
+   await waitFor(()=>expect(title).toHaveFocus());
+   await user.tab();expect(title).not.toHaveFocus();
+  }
+  const enter=screen.getByRole('button',{name:'Enter Attack Mode'});enter.focus();await user.keyboard('{Enter}');
+  screen.getByRole('button',{name:'Exit Attack Mode'}).focus();await user.keyboard('{Enter}');
+  expect(screen.getByRole('button',{name:'Enter Attack Mode'})).toHaveFocus();
+  if(destination==='Trusted contacts'){
+   const add=screen.getByRole('button',{name:'Add contact'});await user.click(add);
+   await screen.findByRole('dialog');await user.keyboard('{Escape}');expect(add).toHaveFocus();
+  }
  });
  it('makes a newly started session available to the diary without reloading',async()=>{
   const user=userEvent.setup();render(<App/>);await screen.findByRole('heading',{name:'A gentler day, Alex.'});

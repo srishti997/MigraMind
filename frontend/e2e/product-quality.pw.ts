@@ -55,6 +55,38 @@ test('skip link and semantic controls support keyboard navigation without upload
  }
 });
 
+test('all workspace destinations retain keyboard focus, landmarks and named controls',async({page})=>{
+ const destinations=['Daily status','Migraine diary','Calendar','Insights','Wellness','Early symptoms','Trusted contacts','Caregiver profile','Support feedback','Settings','Account','Overview'];
+ const writes:string[]=[];
+ page.on('request',request=>{if(['POST','PUT','PATCH','DELETE'].includes(request.method()))writes.push(request.url())});
+ for(const width of [320,1280]){
+  await page.setViewportSize({width,height:850});await page.goto('/');
+  const navigation=page.getByRole('navigation',{name:'Main navigation'});
+  await expect(navigation).toBeVisible();
+  for(const name of destinations){
+   const destination=navigation.getByRole('button',{name,exact:true});
+   await destination.focus();await page.keyboard.press('Enter');
+   await expect(destination).toHaveAttribute('aria-current','page');
+   await expect(page.getByRole('main')).toHaveCount(1);
+   const heading=page.locator('#page-content h1');
+   await expect(heading).toBeFocused();
+   const outline=await heading.evaluate(element=>{
+    const style=getComputedStyle(element);return {style:style.outlineStyle,width:style.outlineWidth};
+   });
+   expect(outline,`${name} focus at ${width}px`).toEqual({style:'solid',width:'3px'});
+   const unnamed=await page.locator('button,input:not([type=hidden]),select,textarea').evaluateAll(nodes=>nodes.filter(node=>{
+    const element=node as HTMLElement;
+    if(!element.getClientRects().length||element.closest('[inert]'))return false;
+    const labelledBy=(element.getAttribute('aria-labelledby')||'').split(/\s+/).some(id=>document.getElementById(id)?.textContent?.trim());
+    return !labelledBy&&!element.getAttribute('aria-label')?.trim()&&!(element as HTMLInputElement).labels?.length&&!element.textContent?.trim();
+   }).map(node=>node.outerHTML));
+   expect(unnamed,`${name} control names at ${width}px`).toEqual([]);
+   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${name} layout at ${width}px`).toBe(true);
+  }
+ }
+ expect(writes).toEqual([]);
+});
+
 for(const [zone,date,label] of [['Etc/GMT+12','2026-01-01','January 1, 2026'],['UTC','2026-01-02','January 2, 2026'],['Pacific/Kiritimati','2026-01-03','January 3, 2026']]){
  test.describe('fixture calendar in '+zone,()=>{
   test.use({timezoneId:zone});
