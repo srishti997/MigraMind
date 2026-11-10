@@ -20,11 +20,18 @@ Start with the [five-minute walkthrough and final checks](docs/PORTFOLIO_READINE
 
 Prerequisites: Python 3.13, Node.js 22 with npm and a current Chromium browser. This review used Node 22.17.1 and npm 11.5.1. SQLite is sufficient; Docker and PostgreSQL are not required for the local demonstration. The quickstart was reproduced from a clean source copy with fresh dependency environments on this Windows setup. Separate-machine and other-platform installations remain unverified.
 
-From the repository root in a new terminal:
+From the repository root in a new terminal and fresh checkout. Stop if a virtual environment already exists; these instructions do not upgrade an existing environment:
 
 ```powershell
+if (Test-Path -LiteralPath backend/.venv) { throw 'Use a fresh checkout; preserve the existing virtual environment.' }
 python -m venv backend/.venv
-./backend/.venv/Scripts/python -m pip install -r backend/requirements-ml.lock.txt
+if ($LASTEXITCODE) { throw 'Virtual environment creation failed' }
+$env:PIP_CONFIG_FILE='nul'
+./backend/.venv/Scripts/python -m pip --isolated --disable-pip-version-check --no-input --no-cache-dir install --index-url https://pypi.org/simple --only-binary=:all: --timeout 20 --retries 1 pip==26.3
+if ($LASTEXITCODE) { throw 'pip 26.3 bootstrap failed' }
+./backend/.venv/Scripts/python -c "from importlib.metadata import version; assert version('pip') == '26.3'"
+if ($LASTEXITCODE) { throw 'Unexpected installer version' }
+./backend/.venv/Scripts/python -m pip --isolated --disable-pip-version-check --no-input --no-cache-dir install --index-url https://pypi.org/simple --timeout 20 --retries 1 --resume-retries 0 -r backend/requirements-ml.lock.txt
 if ($LASTEXITCODE) { throw 'Dependency installation failed' }
 cd backend
 $demoRoot = Join-Path ([IO.Path]::GetTempPath()) ('migramind-demo-' + [guid]::NewGuid().ToString('N'))

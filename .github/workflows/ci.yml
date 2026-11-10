@@ -25,6 +25,7 @@ jobs:
       APP_ENV: development
       DATA_MODE: local
       DATABASE_URL: sqlite://
+      PIP_CONFIG_FILE: /dev/null
     defaults:
       run:
         working-directory: backend
@@ -37,8 +38,12 @@ jobs:
           python-version: '3.13'
           cache: pip
           cache-dependency-path: backend/requirements-ml.lock.txt
+      - name: Bootstrap reviewed installer
+        run: |
+          python -m pip --isolated --disable-pip-version-check --no-input --no-cache-dir install --index-url https://pypi.org/simple --only-binary=:all: --timeout 20 --retries 1 pip==26.3
+          python -c "from importlib.metadata import version; assert version('pip') == '26.3'"
       - name: Install locked backend and ML dependencies
-        run: python -m pip install -r requirements-ml.lock.txt
+        run: python -m pip --isolated --disable-pip-version-check --no-input --no-cache-dir install --index-url https://pypi.org/simple --timeout 20 --retries 1 --resume-retries 0 -r requirements-ml.lock.txt
       - name: Check dependency compatibility
         run: python -m pip check
       - name: Run backend tests (including offline ML)
@@ -79,6 +84,8 @@ jobs:
     name: Isolated Chromium integration tests
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    env:
+      PIP_CONFIG_FILE: /dev/null
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -93,9 +100,13 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - name: Bootstrap reviewed installer
+        run: |
+          python -m pip --isolated --disable-pip-version-check --no-input --no-cache-dir install --index-url https://pypi.org/simple --only-binary=:all: --timeout 20 --retries 1 pip==26.3
+          python -c "from importlib.metadata import version; assert version('pip') == '26.3'"
       - name: Install locked dependencies
         run: |
-          python -m pip install -r backend/requirements.lock.txt
+          python -m pip --isolated --disable-pip-version-check --no-input --no-cache-dir install --index-url https://pypi.org/simple --timeout 20 --retries 1 --resume-retries 0 -r backend/requirements.lock.txt
           python -m pip check
           npm ci --prefix frontend
       - name: Check readiness probe regressions
