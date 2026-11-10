@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import {afterEach,expect,test,vi} from 'vitest';
 import {render,screen,fireEvent,cleanup,within} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import {DailyCheckin} from './DailyCheckin';
 import {CollectionQuality} from './CollectionQuality';
 import {api} from './api';
@@ -31,6 +32,50 @@ test('editing preserves exact repeated-hour timestamps, zero and revision; histo
  expect(screen.getByLabelText('Report date')).toHaveAttribute('readonly');
  fireEvent.submit(screen.getByRole('form',{name:'Daily migraine check-in'}));
  await vi.waitFor(()=>expect(api).toHaveBeenCalledWith('daily-checkins/1','PUT',expect.objectContaining({expected_revision:1,stress:0,event_at:'2025-11-02T06:30:00.000Z',timezone_name:'America/New_York'})));
+});
+
+test('cancel returns to the initiating Edit control without saving or changing the report',async()=>{
+ const saved=structuredClone(row);vi.mocked(api).mockResolvedValue([row]);
+ render(<><button>Outside the check-in</button><DailyCheckin/></>);
+ const outside=screen.getByRole('button',{name:'Outside the check-in'});outside.focus();
+ const edit=await screen.findByRole('button',{name:'Edit 2025-11-02'});expect(outside).toHaveFocus();
+ const user=userEvent.setup();
+ for(let visit=0;visit<2;visit++){
+  edit.focus();await user.keyboard('{Enter}');expect(screen.getByLabelText('Migraine status')).toHaveFocus();
+  expect(screen.getByLabelText('Migraine status')).toHaveValue('no_migraine');
+  await user.selectOptions(screen.getByLabelText('Migraine status'),'migraine');
+  screen.getByRole('button',{name:'Cancel correction'}).focus();await user.keyboard('{Enter}');
+  await vi.waitFor(()=>expect(edit).toHaveFocus());
+  expect(screen.queryByRole('button',{name:'Cancel correction'})).toBeNull();
+  expect(screen.getByLabelText('Migraine status')).toHaveValue('unknown');
+  await user.tab();expect(screen.getByRole('button',{name:'Delete 2025-11-02'})).toHaveFocus();
+ }
+ expect(row).toEqual(saved);expect(vi.mocked(api).mock.calls.every(([,method])=>!method||method==='GET')).toBe(true);
+});
+
+test('cancel focuses the new status control if a refresh removes its Edit opener',async()=>{
+ let reports=[row];
+ vi.mocked(api).mockImplementation(async path=>{if(path.endsWith('/history'))throw new Error('Synthetic history failure');return reports});
+ render(<DailyCheckin/>);const user=userEvent.setup();
+ await user.click(await screen.findByRole('button',{name:'Edit 2025-11-02'}));
+ await user.click(screen.getByRole('button',{name:'History 2025-11-02'}));await screen.findByRole('alert');
+ reports=[];await user.click(screen.getByRole('button',{name:'Reload check-ins'}));
+ await vi.waitFor(()=>expect(screen.queryByRole('button',{name:'Edit 2025-11-02'})).toBeNull());
+ screen.getByRole('button',{name:'Cancel correction'}).focus();await user.keyboard('{Enter}');
+ await vi.waitFor(()=>expect(screen.getByLabelText('Migraine status')).toHaveFocus());
+ expect(vi.mocked(api).mock.calls.every(([,method])=>!method||method==='GET')).toBe(true);
+});
+
+test('cancelling a correction opened by Review yesterday restores that initiating control',async()=>{
+ const day=new Date();day.setDate(day.getDate()-1);
+ const date=`${day.getFullYear()}-${String(day.getMonth()+1).padStart(2,'0')}-${String(day.getDate()).padStart(2,'0')}`;
+ const yesterday={...row,date,timezone_name:'UTC',values:{...values,date,timezone_name:'UTC',event_at:date+'T12:00:00Z',observed_at:date+'T12:00:00Z'}};
+ vi.mocked(api).mockResolvedValue([yesterday]);render(<DailyCheckin/>);const user=userEvent.setup();
+ const review=await screen.findByRole('button',{name:'Review yesterday'});await vi.waitFor(()=>expect(review).toBeEnabled());
+ review.focus();await user.keyboard('{Enter}');expect(screen.getByLabelText('Migraine status')).toHaveFocus();
+ screen.getByRole('button',{name:'Cancel correction'}).focus();await user.keyboard('{Enter}');
+ await vi.waitFor(()=>expect(review).toHaveFocus());
+ expect(vi.mocked(api).mock.calls.every(([,method])=>!method||method==='GET')).toBe(true);
 });
 
 test('deletion uses current revision and explains retention',async()=>{
