@@ -1,0 +1,488 @@
+# Phase 2: release readiness
+
+Assessment: 2026-11-09, `test/release-readiness`, starting at `87ca919db30c5a5675d0888833d4e66355e5a855` (PR #17 merged). Scope: a **local synthetic portfolio demonstration**, not public deployment, real health-data collection or clinical use. This report supplements the historical [portfolio review](PORTFOLIO_READINESS.md), [security audit](SECURITY_PRIVACY_AUDIT.md), [deployment review](DEPLOYMENT_READINESS.md) and [CI guide](CI.md).
+
+## Decision and priorities
+
+The supported release boundary is a guided, loopback-only, synthetic demonstration. Public or real-health use remains blocked. Passing tests establish bounded software behavior, not clinical validation, accessibility conformance or production security.
+
+**Latest installation result:** the [follow-up investigation](#fresh-windows-install-investigation) completed a fresh Windows Python 3.13.12/ML-lock install and **254 backend tests in that new environment**. The earlier failed attempts below remain recorded, with their transport errors and pip cleanup mechanism explained. Other release gates remain open.
+
+**Latest accessibility result:** the two approved fixes are implemented and verified: the login `tel:112` link now measures **48px high**, and Attack Mode destination navigation focuses the appropriate heading while ordinary exits restore entry/opener focus. **82 frontend tests, 17 selected browser tests and both production builds passed.** The [approved-fix validation](#approved-accessibility-fixes-and-validation) records expected pre-fix failures, an initial test-typing build error and outstanding human/device checks. The earlier [emergency review](#pr-18-emergency-navigation-and-accessibility-review) remains historical evidence.
+
+| Priority / scope | Finding, evidence and impact | Required next step / disposition |
+| --- | --- | --- |
+| P0: real health-data / public release blocker | SQLite, downloads and local backups are plaintext. The checkout is on a OneDrive path; ignored files are excluded from Git, **not** necessarily from cloud synchronization. Account authorization does not protect files from the OS user, malware, extensions or cloud backup access. See `app/security.py`, `app/auth.py`, `.gitignore`, and the privacy guide. | Keep all demonstrations fictional; place temporary data outside the checkout. Real use requires storage/backup/key management, access control, retention, incident handling and governance review. No real database was opened for this review. |
+| P0: research / clinical release blocker | `/api/v1/forecast` remains unavailable; fixed synthetic observations and offline metrics do not validate forecasting, diagnosis or treatment. Local download consent is not research enrollment. Existing research and outcome-verification gates remain open. | Preserve existing disclaimers and research gates. No model, claim or clinical policy change is proposed. |
+| P1: public release blocker | A fixed demo email with one operator-chosen password is a shared demonstration identity. Login limits are process-local; no MFA, account recovery, independent penetration test or operational abuse controls are established. Session/login/logout/export operations still write operational records in a health-read-only demo. | Keep access local and password private; do not reuse personal credentials. Public identity, abuse and availability controls require a separate approved design. “Read-only” refers to health/account editing, not a byte-immutable database. |
+| P1: hosted release blocker | Existing production guards require explicit synthetic acknowledgement, dedicated database name, PostgreSQL verified TLS, exact HTTPS origins/hosts. nginx/systemd, database roles, certificate forwarding, encrypted restore and monitoring have not been exercised here. Vite preview is a rehearsal server. | Do not publish the preview server or relax guards. Execute the existing operations runbook on an approved host before any hosted claim. Ubuntu CI is not deployment verification. |
+| P1: broad accessibility release gate | Existing tests cover selected properties; there is no installed axe/pa11y/Lighthouse audit engine. Screen readers, actual tab order through every form/error, 200–400% zoom, all rendered color combinations and migraine-time comfort remain unverified. | Complete the manual checklist below before claiming broad accessibility. This does not prevent a clearly bounded guided desktop demo. |
+| P1: portability gate / installer risk | The fresh Windows install gate is now **verified within the follow-up's bounds**: Python 3.13.12, unchanged locks, new venv and 254 backend tests. Earlier transfer failures exposed pip 25.3's Windows open-handle cleanup defect; interrupted-download handling remains an installer risk. Ubuntu CI is separate evidence. WSL returned `Wsl/EnumerateDistros/Service/E_ACCESSDENIED`; no interactive Linux demo, second personal machine, Firefox, WebKit or physical mobile device was tested. | Retain bounded, isolated retries and the transport evidence; no pip patch/upgrade is included. Rehearse the Linux synthetic-demo commands on a separate approved Linux system. Do not extend the Windows result to the exact earlier 3.13.11 interpreter or another machine. |
+| P2: test gap addressed | Existing keyboard checks did not traverse all 12 workspace destinations with focus, landmark and visible-control-name assertions. | Added one Playwright regression at 320/1280px using mocked synthetic read-only responses; no application changes. |
+| P2: guided-demo presentation limitation | January 2026 fixtures intentionally produce empty recent-window insights; contacts, wellness, early symptoms and feedback are empty. A long mobile navigation list and empty states can dominate a five-minute tour. | Start with the fixed-date guide, explain missingness, and use the timed walkthrough. Do not fabricate recent observations or forecasts. Existing documentation already discloses fixture limits. |
+| P2: login emergency target — resolved in automated checks | The original 19px inline target is now a scoped 48px-high padded link. Its `tel:112` destination, text, native link semantics, visible focus, colors and responsive layout are preserved. | User-approved CSS fix, three parameterized browser regressions / 12 theme-mode-width variants. No live telephone handler was invoked; physical-device comfort remains manual. |
+| P2: support-route focus — resolved in automated checks | Explicit route intent now prevents the Attack Mode return-focus effect from overriding destination-heading focus. Contact setup and caregiver edit, including same-page revisits, pass new unit/browser checks. | Ordinary exits still restore the entry control; contact and episode modal exits restore their connected opener. Human screen-reader/context-change review remains required. |
+| P2: supply-chain / maintenance limitation | Locks pin app packages but Python locks have no artifact hashes. CI actions use commit SHAs and read-only permissions; Python/Node minor selectors can resolve to newer patch versions. Advisory scans do not cover every runtime/OS/browser component. | Review runtime patch policy and scan dependencies at each release; do not interpret lock reproducibility as complete supply-chain assurance. No dependency changes made. |
+| P3: optional copy polish | `frontend/src/SupportCard.tsx` renders the literal separator `Caregiver guide ? saved personal preferences`. This looks like a copy/encoding defect but does not change support behavior. | Defer a copy-only product change for approval; this phase permits tests/documentation only. |
+
+## Inspection and changes
+
+Reviewed README quickstart, backend requirements/locks and environment templates; `security.py`, `auth.py`, demo/deployment/startup guards; Vite, package scripts/lock, both Playwright configurations and all browser suites; CI, operations, security, research, portfolio and release documentation. Test fixtures use new in-memory or temporary SQLite targets. The CI browser harness checks free ports, migrates only its new temporary target, verifies its own server logs plus HTTP 200, disables loopback proxy use and stops its child processes in `finally`.
+
+Isolation is an operator responsibility outside the harness: `load_dotenv()` and the development fallback `sqlite:///./migramind.db` can select an existing local database if settings are omitted. Always set the temporary `DATABASE_URL` explicitly before migrations/startup; a demo-like filename or a read-only UI alone is not proof of fictional provenance. Never copy existing `.env` files into the audit copy. `VITE_*` values are public build inputs, so must never contain secrets.
+
+The initial audit's test/documentation changes were:
+
+- `frontend/e2e/product-quality.pw.ts`: traverse every workspace destination with keyboard Enter at 320/1280px, assert current navigation state, one main landmark, focused heading with visible outline, a bounded visible-control-name heuristic, no page overflow and no writes. This is not a complete accessible-name implementation or an unmocked CRUD journey.
+- This report and a README link to it. Historical sprint reports remain historical; their old counts are not current results.
+
+The later approved accessibility follow-up adds only scoped login-link styling, navigation/return-focus handling and focused regressions, described below. No unrelated functionality, emergency number, SOS workflow, production configuration, migration, dependency lock, credential or existing database change is included. No commit, push, PR, merge, deployment or provisioning against a pre-existing user-data target is performed.
+
+## Validation evidence
+
+### Current Windows candidate
+
+Local host: Windows, Python **3.13.11**, Node **22.17.1**. The npm wrapper reports **11.5.1**; the explicit Node/npm CLI path used by this phase's verifier reports **10.9.2**. A tracked-source copy (including the changed test) was created in a new system temporary directory; ignored databases, `.env`, environments and `node_modules` were not copied. This is testing **on the same machine**, not another-machine testing. Existing installed Chrome is used for local Playwright; GitHub uses the locked Playwright Chromium download.
+
+The initial sandboxed pip attempt failed with `WinError 10013` (network access blocked), not a dependency-resolution verdict. An approved new-copy attempt with pip cache disabled failed after 537.7s with `ConnectionResetError(10054)` while downloading SciPy. A cache-permitted retry with a 120-second network timeout failed after 516.3s: DNS resolution errors while resuming that download, ending in a Windows `WinError 32` file-lock error. None is counted as a successful Python installation. **A complete fresh Windows Python/ML install was not reproduced in that initial audit.** The [fresh-install follow-up](#fresh-windows-install-investigation) below records the subsequent investigation separately; these initial failures remain historical facts.
+
+The remaining Python checks in the **initial audit** used the existing environment, whose installed versions exactly match all **35 base / 42 ML pins**. The frontend used a successful fresh `npm ci` with a new cache in the isolated copy. All databases used by tests/startup remain new and disposable regardless of dependency-environment provenance. The subsequent new-environment results are recorded separately below.
+
+The first fallback backend run reported **240 passed, 14 setup errors**, one warning: `PermissionError [WinError 5]` opening the shared `%TEMP%/pytest-of-srish` directory. No assertion failure was reported in that run. A rerun uses a uniquely named, previously nonexistent `--basetemp` beneath this audit's new directory; no shared directory was deleted or permissions changed. The reproduction commands also select a new pytest target. Never reuse `--basetemp` for a directory containing wanted files: pytest owns/clears that target.
+
+| Check | Initial audit result and execution boundary (follow-up below) |
+| --- | --- |
+| Fresh source / dependencies | Fresh venv creation passed; full Python installation **incomplete** for the transport reasons above. Fresh `npm ci` passed in 137.1s. |
+| Backend / offline ML | **254 passed**, zero failed/skipped, one existing Starlette/httpx deprecation warning, 305.95s on rerun; existing matching Python environment, isolated source and new pytest root |
+| Python compatibility / lock comparison | `pip check` passed; installed metadata matches all 35 base and 42 ML pins; no dependencies installed into the existing environment |
+| Readiness regressions | **4 passed** using `python -m unittest discover -s scripts -p test_ci_browser.py -v` |
+| Frontend unit tests | **80 passed / 14 files**, 85.07s; fresh npm installation |
+| Production builds | Both TypeScript/Vite `local` and `synthetic` builds passed (command wall times 15.2s / 14.7s) in the temporary source copy |
+| Candidate standard browser suite | **22 passed**, 2.0m, including added all-destination keyboard/label/focus test; `scripts/ci_browser.py --api-port 18001 --frontend-port 15174`, existing matching Python environment, fresh npm installation, new editable SQLite, Chrome **156.0.8078.79**; forced ANSI Vite logs also passed readiness |
+| Built synthetic demonstration | Fresh dedicated SQLite migrations, fictional fixture initialization and `app.serve --check` passed. Reinitialization exited 1 as expected, with the fresh fixture database's SHA-256 unchanged. API/direct and proxied `/api/ready` and frontend root returned 200. **3 browser tests passed**, 21.9s, against `app.serve` + built Vite preview at 18015/15185. |
+| Dependency advisories | `npm audit --json`: zero vulnerabilities, exit 0. OSV batch query: **42 pinned Python packages**, zero known advisory entries; package metadata only was submitted. Does not scan OS/runtime/browser or prove package authenticity. |
+| Documentation / diff | README + this report: **30 relative file targets exist**; external sites and every Markdown fragment were not exhaustively checked. `git diff --check` passed; tracked change scope is README, this report and one browser test. No migrations, locks, configuration, existing records or credentials are included. |
+| Cleanup | Browser harness completed cleanup; demo wrapper's `finally` stopped both process trees. A final exclusive-bind check confirmed all four review ports (18001/15174/18015/15185) were free. No existing server was stopped. New synthetic log/database/screenshot artifacts remain in the task's temporary directory for review. |
+
+The fixture check used an automatically generated private password passed only to child environments. The current interactive Windows `getpass` prompt was **not** retested; the previous portfolio review's interactive result is historical evidence, not a new pass. That initial Windows demo startup used the existing matching Python environment, so startup alone did not close the fresh Python installation gate. The separate follow-up below subsequently verified a new Python environment.
+
+Private local artifacts: `%TEMP%/migramind-release-byqz3jsa/` (fresh source/npm, failed install logs, successful checks, new fixture and screenshots). `%TEMP%/migramind-release-2_u_ku5p/` contains the initial sandbox-denied attempt. Neither directory is an existing user-data source, a release artifact or a directory to reuse for real data. The one-off verification wrappers remain outside Git; reproducible checked-in commands and the existing harness are described below.
+
+### Fresh Windows install investigation
+
+Follow-up on the same Windows host, using a **new** `%TEMP%/migramind-install-investigation-lp7xirsl/` source copy, virtual environment, pip temporary directory and test root. No existing venv was installed into, upgraded, repaired or deleted. No user database, secret, migration, application configuration or dependency lock was changed. Only this report changes in the follow-up; the README/browser-test changes above predate it. No provisioning CLI, server startup or deployment was run.
+
+#### Cause and evidence
+
+This was **transport failure plus an installer cleanup defect**, not a demonstrated application dependency conflict:
+
+1. The original commands were `python -m pip install -r requirements-ml.lock.txt` with `PIP_NO_CACHE_DIR=1`, then the same unchanged lock with `--timeout 120` and `PIP_NO_CACHE_DIR=false`, inside the former disposable copy. Neither command bounded total execution or pip's separate resume attempts. Logs show compatible-wheel selection and download, then a reset or DNS errors; no resolver conflict, compiler failure or application import failure was reported.
+2. The earlier `WinError 10013` was a sandbox socket-access denial. The other logs establish `ConnectionResetError(10054)` and `getaddrinfo` error 11001 during package transport. They do not identify the specific remote server, DNS service, proxy, firewall or other component responsible; no such component is blamed without evidence.
+3. Both the preserved failed temporary environment and the fresh environment use **pip 25.3**, with byte-identical `pip/_internal/network/download.py` (SHA-256 `1e0b05bd390f0dd820d3351e868b1efc9fb9e36fbd474169ca2a51c39061c403`). Its incomplete-download path calls `os.remove()` while the enclosing writer is still open. That can mask the intended incomplete-download exception with Windows sharing violation 32. The same control flow is visible in the [upstream pip 25.3 source](https://github.com/pypa/pip/blob/25.3/src/pip/_internal/network/download.py#L171-L232).
+4. A deterministic **zero-network** probe invoked that installed cleanup path with one simulated failed resume and a new one-byte file held open by the same process. It raised `PermissionError`, errno 13, **winerror 32**; after closing the handle, renaming and reading the file succeeded. No unrelated process or antivirus lock is needed to reproduce the symptom. This establishes the cleanup mechanism, not the origin of the earlier network interruption. Pip itself was not patched or upgraded.
+5. Fresh probes resolved `pypi.org` and `files.pythonhosted.org`; official SciPy 1.18.1 metadata returned 200 and listed `scipy-1.18.1-cp313-cp313-win_amd64.whl` (36,622,841 bytes, Python `>=3.12`). A 1,024-byte range request returned **206** and a ZIP signature. Writing, flushing, renaming and reading a new 65,536-byte file in the private temporary directory passed. These point-in-time checks do not prove permanent network reliability or an absence of all external locks.
+6. Both locks contain only exact package pins; all **35 base pins** are an identical subset of the **42 ML pins**. No repository pip configuration, custom-index directive, editable dependency or source-build requirement was found. The controlled install used official HTTPS PyPI, binary wheels, no cache, ignored pip configuration and no inherited pip/Python option overrides. TLS verification remained enabled.
+
+#### Bounded attempt and results
+
+The approved process resolved `python` to `C:/Users/srish/.jupyter/.ipynb/python.exe`, **Python 3.13.12 x64**, rather than the earlier Miniconda **3.13.11**. This satisfies the documented Python 3.13 family but is **not an exact patch/interpreter rerun** of the original attempt or another-machine test. The fresh venv has system-site packages disabled. The installer is its newly seeded pip 25.3, not the application's existing venv.
+
+| Check | Follow-up result |
+| --- | --- |
+| Network / private file probes | Passed, 1.75s; no diagnostic retry loop; hard cap 75s |
+| New venv / installer version | Created in 19.10s; pip 25.3 confirmed; venv creation cap 90s |
+| ML lock installation | **Exit 0**, 357.79s; all 42 packages installed into the new venv; hard cap **600s** |
+| Artifact / lock integrity | The install report lists 42 artifacts, all from `files.pythonhosted.org`; the downloaded SciPy SHA-256 matches official metadata (`559ed65f60c1af5a03f3912605a1b5114f522c7c32fb23c3376ae8f03219fe28`). Both repository lock hashes still match the source-copy baseline. This is a provenance check, not a general package-security claim. |
+| Retry policy | Socket timeout **20s**, `--retries 1`, `--resume-retries 0`; **one** ML install invocation, no outer install retries; base-only fallback was not needed |
+| Compatibility | `pip check`: exit 0, 5.21s |
+| Pins / imports | Exit 0, 44.81s: all 42 installed versions match the unchanged ML lock, including all 35 base pins; 17 runtime/ML module imports originate inside the new venv; `app.main` imports from the new source copy with `DATABASE_URL=sqlite://`; no existing database is opened |
+| Backend suite in the new venv | **254 passed**, zero failed/skipped, **one existing Starlette/httpx deprecation warning**, **290.85s** pytest duration (296.52s command wall time); exit 0, no timeout; hard cap **900s** |
+| Pip cleanup probe | Expected `WinError 32` reproduced with zero network requests; closing the owned handle allowed rename/read; no existing files deleted |
+
+The 17 third-party imports were `fastapi`, `uvicorn`, `sqlalchemy`, `alembic`, `psycopg`, `pydantic`, `httpx`, `pytest`, `argon2`, `tzdata`, `numpy`, `scipy`, `sklearn`, `joblib`, `cloudpickle`, `narwhals` and `threadpoolctl`. Installation writes, caches and logs stayed within the new target. `PYTHONDONTWRITEBYTECODE=1`, a private `TEMP`/`TMP`, explicit in-memory application URL and a previously nonexistent pytest base directory isolated verification. Existing backend fixture tests create only fictional, disposable data.
+
+Disabling resumes bounds work; it is **not a fix for pip's open-handle cleanup defect**. A fresh directory likewise does not cure a network outage. A successful complete download simply avoids that error path. No timeout was used to conceal a failed test, and no dependency pins were changed to make installation pass.
+
+#### Exact commands and safe reproduction
+
+Actual command shapes, run from the new source copy, with `<fresh-python>` equal to the **new** `ml-venv/Scripts/python.exe` and `<source>` its new `source` directory:
+
+```text
+<base-python> -I -m venv <new-root>/ml-venv
+<fresh-python> -I -m pip --version
+<fresh-python> -I -m pip --isolated --disable-pip-version-check --no-input --no-cache-dir install --index-url https://pypi.org/simple --only-binary=:all: --timeout 20 --retries 1 --resume-retries 0 -r <source>/backend/requirements-ml.lock.txt --report <new-root>/ml-install-report.json
+<fresh-python> -I -m pip check
+<fresh-python> -I <new-root>/verify.py <new-root>/ml-venv <source>/backend/requirements-ml.lock.txt <source>/backend
+<fresh-python> -m pytest -q -ra --basetemp <new-root>/pytest-<new-uuid>
+<fresh-python> -I -B %TEMP%/migramind-pip-lock-probe.py <new-root>
+```
+
+The verification wrapper set `PIP_CONFIG_FILE=NUL`, removed inherited `PIP_*`/`PYTHON*` options and `VIRTUAL_ENV` from **child environments only**, and set `APP_ENV=development`, `DATA_MODE=local`, `DATABASE_URL=sqlite://`. No persistent environment setting was edited. Download/unpack `TEMP`/`TMP` pointed to `<new-root>/pip-temp`; test `TEMP`/`TMP` pointed to `<new-root>/runtime-temp`. Subprocesses had explicit wall-clock caps: install 600s, imports 90s and backend tests 900s. On timeout only the wrapper's own child tree would be terminated; no timeout occurred in these completed checks.
+
+To reproduce without reusing an existing environment, run this bounded Windows scaffold from the repository root with a Python 3.13 interpreter. It creates a tracked-source copy only; it never copies ignored `.env`, venv or database files. The final assertion requires all 42 pin checks and verifies the imports in that new environment. Test output goes to private logs; check the printed path/results before drawing conclusions.
+
+```powershell
+@'
+from pathlib import Path
+import os, sys, tempfile, subprocess, shutil, uuid
+repo = Path.cwd()
+root = Path(tempfile.mkdtemp(prefix="migramind-install-recheck-"))
+source = root / "source"
+source.mkdir()
+for name in filter(None, subprocess.check_output(["git", "ls-files", "-z"]).decode().split("\0")):
+    original = repo / name
+    if original.is_file():
+        target = source / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(original, target)
+assert not list(source.rglob(".env")) and not list(source.rglob("*.db")) and not list(source.rglob("*.sqlite"))
+scratch = root / "scratch"
+scratch.mkdir()
+env = {k: v for k, v in os.environ.items()
+       if not k.upper().startswith(("PIP_", "PYTHON")) and k.upper() != "VIRTUAL_ENV"}
+env.update(PIP_CONFIG_FILE=os.devnull, TEMP=str(scratch), TMP=str(scratch),
+           PYTHONDONTWRITEBYTECODE="1", APP_ENV="development", DATA_MODE="local", DATABASE_URL="sqlite://")
+print("New target:", root, "Base:", sys.executable, sys.version, flush=True)
+def run(label, args, cwd, seconds):
+    with (root / (label + ".log")).open("w", encoding="utf-8") as log:
+        child = subprocess.Popen([str(a) for a in args], cwd=cwd, env=env,
+                                 stdout=log, stderr=subprocess.STDOUT,
+                                 creationflags=subprocess.CREATE_NO_WINDOW)
+        try:
+            code = child.wait(timeout=seconds)
+        except subprocess.TimeoutExpired:
+            subprocess.run(["taskkill", "/PID", str(child.pid), "/T", "/F"],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                           check=False, timeout=20)
+            child.wait(timeout=20)
+            raise
+    print(label, "exit", code, flush=True)
+    assert code == 0, str(root / (label + ".log"))
+venv = root / "ml-venv"
+run("venv", [sys.executable, "-I", "-m", "venv", venv], root, 90)
+python = venv / "Scripts/python.exe"
+lock = source / "backend/requirements-ml.lock.txt"
+run("install", [python, "-I", "-m", "pip", "--isolated", "--disable-pip-version-check",
+    "--no-input", "--no-cache-dir", "install", "--index-url", "https://pypi.org/simple",
+    "--only-binary=:all:", "--timeout", "20", "--retries", "1", "--resume-retries", "0",
+    "-r", lock, "--report", root / "install-report.json"], source, 600)
+run("pip-check", [python, "-I", "-m", "pip", "check"], source, 60)
+verify = root / "verify.py"
+verify.write_text("""from pathlib import Path
+from importlib.metadata import version
+import importlib, sys
+venv, lock, backend = map(Path, sys.argv[1:])
+pins = [s.split('==') for s in lock.read_text(encoding='utf-8-sig').splitlines() if s.strip() and not s.startswith('#')]
+assert len(pins) == 42 and all(version(n) == v for n, v in pins)
+assert Path(sys.prefix).resolve() == venv.resolve() and sys.prefix != sys.base_prefix
+for name in ['fastapi','uvicorn','sqlalchemy','alembic','psycopg','pydantic','httpx','pytest','argon2','tzdata','numpy','scipy','sklearn','joblib','cloudpickle','narwhals','threadpoolctl']:
+    module = importlib.import_module(name)
+    assert Path(module.__file__).resolve().is_relative_to(venv.resolve())
+sys.path.insert(0, str(backend))
+import app.main
+assert Path(app.main.__file__).resolve().is_relative_to(backend.resolve())
+assert app.main.security.database_url == 'sqlite://'
+print('42 pins, 17 third-party imports, isolated app.main import passed')
+""", encoding="utf-8")
+run("imports", [python, "-I", verify, venv, lock, source / "backend"], source, 90)
+testroot = root / ("pytest-" + uuid.uuid4().hex)
+assert not testroot.exists()
+run("backend", [python, "-m", "pytest", "-q", "-ra", "--basetemp", testroot], source / "backend", 900)
+'@ | python -I -
+if ($LASTEXITCODE) { throw 'Check the new target logs; verification did not complete' }
+```
+
+This scaffold uses one private scratch directory for pip/test temporary files; the executed investigation used separate private directories. Both keep all test data outside existing installations. The installer options bound request retries; the wrapper supplies the separate total deadline. Keep logs if a transfer fails again; do not clear shared temp directories, disable antivirus/TLS, reuse a partially installed venv or alter locks based solely on a transport error.
+
+Logs and machine-readable evidence for the executed investigation are outside Git under `%TEMP%/migramind-install-investigation-lp7xirsl/`: `results.json`, `network-and-file-probes.log`, `install-ml.log`, `ml-install-report.json`, `pip-check.log`, `pins-and-imports.log`, `backend-tests.log`, `pip-lock-probe.json` and `artifact-check.json`. The temporary investigation/probe wrappers also remain outside Git. The probe creates its own previously nonexistent file and refuses to reuse its output names; use a new probe directory when repeating it. The reproduction scaffold was syntax-checked, not executed a second time. Remaining limits: same Windows host only; the exact original 3.13.11 interpreter was not retried; the source of the earlier resets/DNS failures is unidentified; pip's interrupted-download cleanup issue remains present; Linux desktop, hosting and the accessibility/governance gates below are unchanged. Earlier frontend/browser results were not rerun or newly claimed in this follow-up.
+
+### Rendered visual review
+
+Playwright captured all 12 workspace destinations at **1280px and 390px**, plus desktop login, mobile Attack Mode, SOS and dark settings: **28 views**, zero recorded page errors and zero overflow flags for the 24 workspace views. The agent inspected eight contact sheets covering those 24 actual screenshots and the four additional images with the image viewer. Captures are synthetic and ignored at `.research/release-readiness/`; originals/logs are also in the task's system temporary directory. No patient data is pictured.
+
+Warm/dark appearance, screen hierarchy, the fixed January calendar, read-only notes and empty-state explanations were visible without a confirmed layout-blocking defect in these views. The mobile navigation and repeated guide push content far down the page; caregiver preferences and sparse insights are particularly long. The login emergency target and caregiver separator follow-ups are prioritized above. This is agent visual inspection of automatically rendered images, **not human manual browser interaction**, screen-reader testing, a colorimeter/whole-page contrast audit or a physical-device comfort assessment. No call, SMS, clipboard/share or location action was activated during visual capture (browser tests separately use mocked device APIs).
+
+### Independently inspected Ubuntu CI
+
+Read-only GitHub API and downloaded job logs confirm [PR #17 CI](https://github.com/srishti997/MigraMind/actions/runs/42604412009) at `1b95c38d0c0d607f9de3c96d992576d16141dbaa` and [main merge CI](https://github.com/srishti997/MigraMind/actions/runs/42605010506) at `87ca919db30c5a5675d0888833d4e66355e5a855` completed successfully. Merge-job logs report:
+
+| Check | Actual Ubuntu result |
+| --- | --- |
+| Backend / offline ML | 254 passed, one warning, 45.26s; `pip check` passed |
+| Frontend | 80 passed in 14 files |
+| Both production bundles | local and synthetic build steps succeeded |
+| Readiness regressions | 4 tests passed |
+| Disposable editable Chromium suite | 21 passed, 52.5s |
+| Runtime | Ubuntu 24.04.5, Python 3.13.18, Node 22.23.4, npm 10.9.9 |
+
+Those runs precede this phase's added test. They verify Linux dependency installation, test/build execution and loopback backend/Vite startup in ephemeral CI, with dependency caches permitted. They do **not** verify a manually installed Linux desktop, a provisioned Linux synthetic demo, public hosting or this uncommitted test on GitHub. No workflow was triggered by this review.
+
+## Workflow coverage and boundaries
+
+| Requested workflow | Existing evidence exercised | Limits |
+| --- | --- | --- |
+| Authentication | `test_auth.py`, `authentication.pw.ts`, `security.pw.ts`: real isolated API registration/login, two-account isolation, stale tabs, CSRF/Origin, logout, consent and deletion | Fictional accounts only; no recovery/MFA or external identity provider |
+| Daily status | `test_prospective.py`, `prospective.pw.ts`: keyboard report, revision conflicts/history, tombstones, research quality | No actual participant or prospective outcome verification |
+| Migraine diary | `test_api.py`, `test_audit_remediation.py`; `tracking.pw.ts`, `patterns.pw.ts`: strict validation, historical preservation, timestamps/DST, optional values | Browser form CRUD is mocked; backend CRUD/validation uses isolated real SQLite |
+| Calendar | `tracking.pw.ts`, `product-quality.pw.ts`: month/day selection, unknown vs recorded days, three timezone boundaries; dedicated demo fixture navigation | Not an exhaustive locale/timezone matrix |
+| Insights | `test_pattern_insights.py`, `patterns.pw.ts`; built-demo summary/pattern failure and retry checks | Mocked supported/sparse cases plus real synthetic empty-window responses; no clinical inference |
+| Wellness / early symptoms | `test_api.py` CRUD, unknown/zero and timezone checks; `tracking.pw.ts` form save/edit/delete and export | Browser API mocked; no longitudinal real-user study |
+| Trusted contacts | Backend ownership/phone validation and CRUD; assistance/support browser safe-link checks | No actual phone call, SMS, delivery or emergency-system interaction |
+| Caregiver profile | Backend account isolation/persistence; `support.pw.ts` preference save/reload; demo disabled-save checks | Browser editable preferences mocked; no caregiver identity/authorization workflow |
+| Support feedback | `test_api.py`, `test_support.py`, `support.pw.ts`: optional feedback lifecycle, active-session suppression, explicit opt-in ordering | Browser API/share/clipboard mocked; deterministic support ordering is not clinical effectiveness |
+| Partial failures / exports | Existing frontend tests and demo suite retry checks, account-change guards, consent/download and blocked writes | No network chaos campaign or third-party delivery verification |
+
+The standard browser suite mixes real-API and mocked tests as identified above. A green browser count must not be described as end-to-end persistence coverage of every screen.
+
+## Accessibility audit
+
+| Area | Automated / source evidence | Manual work remaining |
+| --- | --- | --- |
+| Keyboard and focus | Skip link, Enter navigation, page/research destination focus, modal focus trap/Escape/return, Attack Mode entry/exit; added all-destination check. CSS supplies 3px `:focus-visible` outlines. | Natural sequential Tab/Shift+Tab order across every populated form, validation/retry and disclosure; Space activation beyond existing research-tour checks; focus visibility under forced colors/zoom |
+| Labels / semantics | Role-based locators, main/navigation landmarks, field labels, modal semantics; existing and new bounded control-name checks | Screen-reader names, reading order, status/error announcements, SVG semantics and all dynamic states with NVDA/VoiceOver |
+| Contrast | Existing test calculates three semantic text/background token pairs in warm and dark themes against 4.5:1 | All actual text, disabled controls, borders, selected days, focus rings and non-text contrast; token checks are not whole-page contrast measurement |
+| Motion / size | CSS `prefers-reduced-motion` and saved preference; existing browser assertions for no animation/transition, larger-text/simplified support and emergency visibility | Vestibular/photophobia comfort, OS settings, zoom/reflow at 200–400%, text spacing and large-font device settings |
+| Responsive layout | Browser overflow assertions at 320/390/768/1280px across existing suites; built-demo all-screen checks at 320/768/1280px | Real phones/tablets, landscape, mobile keyboards, touch accuracy, longer/localized data and alternate browser engines |
+
+No dedicated automated accessibility engine was found in package scripts or the lock. No accessibility certification, human screen-reader pass or physical-device pass is claimed. The earlier screenshot review is agent visual inspection of Playwright-rendered images, separate from these manual tasks. The PR #18 checks below add bounded login/emergency evidence, not accessibility certification.
+
+### PR #18 emergency navigation and accessibility review
+
+This section records the **pre-approval review**, before the two fixes below. Scope: `test/release-readiness`, same Windows host, preserved working tree. Only the report changed during that review. The earlier README/browser-test edits remained intact. The successful fresh Windows Python **3.13.12** installation, **42 verified pins** and **254 passing backend tests** are separate evidence above; they were not rerun or replaced by the frontend reviews. The exact earlier 3.13.11 interpreter, unexplained historical transport interruptions and pip 25.3 incomplete-download cleanup defect remain limitations. Source line references and 19px/focus observations in this historical section describe the pre-fix snapshot.
+
+#### Exact destinations and intended behavior
+
+| Entry / source | Destination and behavior | Semantics, safety and verification boundary |
+| --- | --- | --- |
+| Login / registration / connection-error page, [Authentication.tsx](../frontend/src/Authentication.tsx#L26) | Literal **`tel:112`**, including before authentication and when bootstrap fails. No HTTP redirect, application help route, `target` or click handler is attached. | Native `<a href>` outside the form; accessible name **Emergency call · 112 (India)**. Nearby wording identifies India, says the user initiates the call and nothing is dispatched automatically, and disclaims medical-device/monitored-service status. Natural Tab/Enter and intercepted pointer activation are checked below. |
+| Attack Mode emergency action, [AttackMode.tsx](../frontend/src/AttackMode.tsx#L16) | **`tel:<saved-number>`** for a known preference matching 2–6 ASCII digits; otherwise **`tel:112`**. Fixtures confirmed `112`, saved `999`, malformed-value fallback and unavailable-preference fallback. | Native link with large target; remains independent of session/contacts/recommendation availability. Labels distinguish India/default from saved number; unavailable-preference copy asks the user to confirm the local number. This syntax guard does not verify regional correctness or reachability. |
+| **SOS / Get help**, [AttackMode.tsx](../frontend/src/AttackMode.tsx#L29) | Opens inline `#help-request`; **does not call or navigate to an external site**. | Native button with `aria-expanded`/`aria-controls`; focuses the SOS heading. Close returns focus to the SOS button. It is not an emergency-dispatch button or a modal requiring its own tab trap. |
+| Trusted-contact calls and SMS, [SOSMessage.tsx](../frontend/src/SOSMessage.tsx#L37), [assistance.ts](../frontend/src/assistance.ts#L17) | `tel:<normalized-contact-number>` and `sms:<normalized-number>?body=<encoded-message>`; iOS uses `&body=`. The directory's call actions use the same number guard. | Malformed values cannot produce web/script URI schemes; number formatting is syntax-only. Opening a composer is not sending a message. Text/location requires explicit preparation; no delivery/monitoring guarantee. No contact call/SMS was actually handed off during review. |
+| **Emergency guidance → Guidance sources**, [AttackMode.tsx](../frontend/src/AttackMode.tsx#L39) | **`https://112.gov.in/`** and **`https://www.nhs.uk/symptoms/headaches/`**, each with `target="_blank"`, `rel="noreferrer"`. These are information links, not telephone actions. | Native disclosures and links; no health values, tokens or query parameters are embedded. `noreferrer` requests referrer suppression and opener isolation under browser semantics. The labels do not explicitly warn about a new tab; optional copy/accessibility follow-up, not a demonstrated destination defect. External responses/redirects/content were not exercised or clinically reviewed here. |
+| **View caregiver guide / My support card** | Opens saved-preference disclosure within Attack Mode and focuses its summary; does not send data. | Source and existing SOS tests cover summary focus; sharing remains a separate explicit review/copy/share action. |
+| **Set up a trusted contact / Review or edit outside Attack Mode**, [main.tsx](../frontend/src/main.tsx#L82) | Leaves Attack Mode for **Trusted contacts** / **Caregiver profile** inside the workspace. No external navigation or automatic persistence. | Destination renders, but the focused-probe finding below shows header focus overriding destination-heading focus. |
+| **Exit Attack Mode / Log an episode / Review support feedback** | Exit returns to the workspace and its entry control; diary action opens the existing form (or read-only notice in demo mode); optional post-session feedback opens its workspace page. | Leaving the view does not end an active session. Starting/ending sessions and saving forms are separate explicit API writes in editable mode; no such operation is necessary to follow an emergency link. Existing mocked tests cover exit/modal/feedback flows. |
+
+A `tel:` URI requests the browser/device's registered calling handler. It may open a dialer, app chooser or web-based handler, or initiate a call, depending on the platform; an additional confirmation screen is **not guaranteed**. The app does not automatically activate it on load. See [MDN telephone-link behavior](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/a#linking_to_telephone_numbers) and [noreferrer semantics](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Attributes/rel/noreferrer). Do not infer successful OS handoff, call completion or emergency-service contact from DOM assertions.
+
+#### Historical findings and proposals before approval
+
+| Priority | Exact file / evidence / impact | Minimal proposed correction requiring approval |
+| --- | --- | --- |
+| P2: login emergency target | [Authentication.tsx:26](../frontend/src/Authentication.tsx#L26), [style.css:202](../frontend/src/style.css#L202), [style.css:393](../frontend/src/style.css#L393): the link is `display:inline`, measured **19px high**, whereas neighboring authentication buttons have a 48px minimum height. Keyboard semantics and focus work, but the small target is harder to use with touch/motor difficulty during urgency. This is a usability finding, **not a declared WCAG target-size failure**; spacing/exceptions/full conformance were not audited. | Add a narrowly scoped `.auth-panel .emergency-action` style with inline-flex alignment, padding and a 48px minimum height matching neighboring controls; keep `href="tel:112"`, link semantics and India/no-dispatch wording. Add a login target-size/focus regression. No URL or clinical-content change is proposed. |
+| P2: emergency-support route focus | [main.tsx:34](../frontend/src/main.tsx#L34), [main.tsx:53](../frontend/src/main.tsx#L53), [main.tsx:82](../frontend/src/main.tsx#L82): keyboard activation of contact setup and caregiver edit displays the right destination, but `document.activeElement` is **Enter Attack Mode**, not its `<h1>`. The page-heading effect runs before the unconditional Attack Mode return-focus effect, which overrides it. A screen-reader/keyboard user can miss the destination change and must traverse header controls again. Emergency dialing itself remains available. | Distinguish explicit **Exit Attack Mode** return focus from navigation to another destination. Keep entry-button focus for ordinary exit; focus the destination heading for contact/profile handoffs, including revisiting the same destination. Add regression assertions for both handoffs and retain existing exit/modal focus assertions. |
+| P3: optional external-link announcement | `AttackMode.tsx:39`: guidance links explicitly request a new tab but their accessible labels do not say so. Browser behavior/assistive-technology announcement remains a manual check. | Consider visible “opens in a new tab” text or an associated description without changing destinations or `rel`; seek approval before product copy changes. |
+
+No incorrect `http:` destination, `javascript:` injection or automatic dialing was confirmed for the login emergency action. The small target and route-focus defect were recorded for approval, then fixed only after the user's subsequent explicit authorization, as documented below. Existing source disclaimers and emergency destinations are retained.
+
+#### Non-destructive checks in this review
+
+Checks use a new `%TEMP%/migramind-emergency-review-kjhyxvex/` tracked-source copy with a **copy of the previously locked npm installation**; dependency lock hashes matched before reuse. This is not a new npm-install claim. Only a loopback Vite server was started at **15381**, with an unused discard-port API proxy and **all browser API requests mocked**. No backend, database, migration or provisioning command was run. Fake writes in existing unit/support browser tests affect fixture memory only.
+
+The focused probe installs a capture-phase guard that prevents default telephone/SMS/external-HTTP activation **before** keyboard or pointer events can invoke their native handlers. Out-of-origin HTTP requests are also blocked. This safety interception is confined to the temporary review harness, not product code. It validates event reachability/destination, not a real dialer, new tab, clipboard, geolocation or service delivery. Existing SOS/support tests separately mock device APIs.
+
+| Check | Result / limits |
+| --- | --- |
+| Frontend unit suite | **80 passed / 14 files**, 168.25s (173.35s command wall time), using `node node_modules/vitest/vitest.mjs run --maxWorkers=1` |
+| Existing mocked browser subset | Initial invocation: **11 passed, 1 failed**, 1.2m (73.44s command wall time). The responsive assistance test exhausted its unchanged **30s total test budget** while querying the SMS link's bounding box; that link is present in the failure snapshot, and no layout assertion failed. A **single unchanged rerun at the same 30s limit passed**, 4.4s test / 5.6s suite duration (6.45s command wall time). All 12 selected scenarios therefore have passing executions, but the initial group was **not a clean pass**; cause of that transient timeout is not isolated. No timeout increase, assertion relaxation or product/test-source change was applied. |
+| Focused login probe | **12 variants**: 320/390/1280px × warm/dark × anonymous local/server-attested-synthetic modes. Each has literal `tel:112`, native link semantics outside the form, natural Tab reachability, Enter and pointer activation captured before default, a solid **3px** focus ring, **7.492:1** computed emergency text/background contrast, **19px** target height, and no horizontal overflow. Visibility was checked **after keyboard focus**, not as a universal initial-viewport guarantee. Separate failed-bootstrap fixture retained the emergency link. The earlier six-variant probe is retained separately. |
+| Focused Attack Mode / SOS / source links | Four fixtures confirmed `tel:112`, saved `tel:999`, malformed-preference fallback and unavailable-preference fallback, plus heading → Exit → emergency Tab order. Emergency targets measured **105–127.5px** high at 320px. SOS heading/close-return focus and guidance href/target/rel checks passed. Confirmation captured/prevented **36** telephone/external-link activations across login and Attack Mode; zero actual external request attempts, zero mutation requests and zero page errors in that probe. No native handoff/new-tab behavior is claimed. |
+| Route-focus observation | Both contact setup and caregiver edit render the right page but leave focus on **Enter Attack Mode**; this is a confirmed unresolved finding, not an accessibility pass |
+| Isolation / preservation / cleanup | All tracked source-file SHA-256 values matched the pre-review baseline, including the existing README/browser-test work, locks, migrations and configuration. Only the untracked review report was intentionally updated. Vite process-tree cleanup completed, and an exclusive-bind check confirmed port 15381 free. Temporary logs/screenshots remain for review; no database or existing server was used. |
+
+The selected checked-in browser files are `assistance.pw.ts`, `sos.pw.ts`, `support.pw.ts` and `product-quality.pw.ts`. Commands run from the disposable `source/frontend`:
+
+```text
+node node_modules/vitest/vitest.mjs run --maxWorkers=1
+node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 15381 --strictPort
+node node_modules/@playwright/test/cli.js test e2e/assistance.pw.ts e2e/sos.pw.ts e2e/support.pw.ts e2e/product-quality.pw.ts --config playwright.config.mjs --output <new-root>/browser-results
+node node_modules/@playwright/test/cli.js test e2e/assistance.pw.ts --grep "responsive pages and attack assistance avoid horizontal overflow" --config playwright.config.mjs --output <new-root>/browser-rerun
+```
+
+The Node probe and lifecycle wrappers remain temporary; `frontend-unit.log`, `mocked-browser.log`, `responsive-rerun.log`, `emergency-probe-confirmation.json`, `results.json` and the source-hash baseline are retained outside Git under the path above. The first probe's `width` field describes element width; the confirmation separately records `viewportWidth`, eliminating that logging ambiguity without changing product code. The agent visually inspected warm/dark synthetic login and caregiver-route focus screenshots at 320px; this is **not human keyboard/screen-reader testing**. No native emergency number was activated, and no external guidance page was opened. The earlier full **22 browser / 3 built-demo / 4 readiness-regression** results remain earlier evidence; this review does not claim those complete suites were rerun.
+
+#### Manual verification gates still open
+
+- **Keyboard-only:** human Tab/Shift+Tab traversal from login through error/retry, registration, every populated form and disclosure; native links activate with **Enter**, buttons also with **Space**. Check that no required control needs a mouse, no focus is obscured, and escape/return works without accidental activation. Automated `.focus()` followed by Enter does not establish natural tab order everywhere.
+- **Screen readers:** NVDA with intended Windows browser, and VoiceOver/Safari if supported; landmarks, heading order, labels, SVG announcements, field errors, loading/status announcements, `aria-expanded`, SOS/support-card reading order and new-tab expectations. Browser role locators and control-name heuristics are not screen-reader testing.
+- **Focus management:** the support-route issue is now fixed in automated checks below; human inspection still covers login/logout, session expiry, validation failure, retry, modal close, Attack Mode entry/exit, SOS open/close, guide transitions, research navigation and any new-tab return. Preserve visible focus under zoom and forced-color settings.
+- **Contrast and resizing:** inspect all rendered text, borders, icons, disabled/selected states and focus rings in warm, dark and Attack Mode, not only three token pairs or the emergency text pair. Test 200–400% zoom, text spacing, large-font settings and reflow. No whole-application contrast or accessibility conformance pass is claimed.
+- **Responsive / comfort:** real phones/tablets, landscape, software keyboards, longer content, touch-target spacing, migraine-time comfort and reduced-motion preferences; Firefox/WebKit and physical-device behavior remain untested here. The approved login target fix passes automated checks below; real-device comfort is still unverified.
+- **Handler behavior and safety:** OS/registered `tel:`/`sms:` handling and source-link tab behavior remain unverified. Use a safely stubbed handler or an authorized non-emergency test arrangement; **never call 112 or another real emergency service for QA**. No simulated test establishes delivery, emergency response or clinical suitability.
+
+These gates remain open for broad accessibility/release sign-off. A guided local synthetic demonstration must disclose its limitations; public hosting, real health data and clinical/research use remain blocked under the existing gates. The subsequent authorization covers only the two fixes below, not publication or deployment.
+
+### Approved accessibility fixes and validation
+
+The user explicitly approved the login target and destination/return-focus fixes on the existing branch. This follow-up changes exactly:
+
+- `frontend/src/style.css`: a single `.auth-panel .emergency-action` rule adds inline-flex alignment, 48px minimum height, 12px/16px padding and the existing small-radius token. No font, palette, global emergency styling, number, text or href changes.
+- `frontend/src/main.tsx`: records whether Attack Mode is handing off to a destination. Route handoffs focus the destination `<h1>` (main landmark fallback), including a revisit to the same page. Ordinary exits restore the connected entry control. Modal close restores its connected initiating control. The existing contact/profile/feedback navigation callbacks share this focus intent; their destinations, persistence and SOS behavior are unchanged. Focus is transition-driven, with no timer or trap.
+- `frontend/src/AttackMode.test.tsx`: two parameterized unit cases exercise contact setup and caregiver edit, first and repeated same-page navigation, Tab away from the heading, ordinary Attack Mode exit, and contact-dialog Escape/return. Existing episode-dialog focus tests remain intact.
+- `frontend/e2e/accessibility-fixes.pw.ts`: five browser regressions: three viewport cases cover 12 local/synthetic × warm/dark login variants; two cases cover both navigation flows, repeated destinations, ordinary exits and contact-dialog close. The login tests verify a native link, unchanged accessible name/href, at least 48px height, natural Tab/Enter, visible focus and no horizontal overflow. A capture listener prevents the real `tel:112` handler from opening during activation tests.
+- `docs/RELEASE_READINESS.md`: current statuses, before/after evidence, actual failures/results and remaining manual gates. Existing `README.md` and `product-quality.pw.ts` work from earlier turns is preserved unchanged.
+
+All execution used a new `%TEMP%/migramind-a11y-fixes-8dmhwlr9/` source/dependency copy. The previously locked npm dependency directory was copied; no packages were installed or locks updated. API responses are mocked, and the only server is disposable loopback Vite at 15382 with an unused API-proxy target. No backend, database, migration, provisioning, actual call, external guidance navigation or production service was used.
+
+| Verification | Actual result |
+| --- | --- |
+| Regression sensitivity / before | All **5 new browser cases failed as expected** against the original `main.tsx`/`style.css` substituted only in the disposable copy: three measured **19px instead of ≥48px**, two found destination headings unfocused. This intentional negative control is not a flaky run or a failing final candidate. |
+| Final frontend unit suite | **82 passed / 14 files**, zero failed/skipped, **41.38s** (42.16s command wall time), after correcting the test-query typing issue below |
+| Candidate browser suite | **17 passed**, **25.8s** (26.83s wall time), first candidate invocation with default timeouts and no retries. Includes all 5 new cases and the existing 12 mocked assistance/SOS/support/product-quality scenarios. No browser failure or timeout in this candidate run. |
+| Production builds | Both TypeScript/Vite builds passed: **local 8.09s** command wall time (Vite 2.82s); **synthetic 7.87s** (Vite 2.81s). Output stays in temporary local/synthetic directories. |
+| Focused accessibility measurements / after | All **12 login variants measured 48px high**, with unchanged **7.492:1** emergency text/background contrast, unchanged native accessible name/`tel:112`, visible solid 3px focus and no horizontal overflow. Both contact/profile routes now have the correct destination **H1** as `document.activeElement`. |
+| Safety / neighboring flows | Four emergency-number/default/fallback fixtures, SOS heading/close-return focus, source-link href/target/rel and existing exit/modal/feedback tests passed. The focused probe prevented **36** telephone/external activations, with zero actual external request attempts, zero API mutation requests and zero page errors. Existing support tests use in-memory mock writes/device APIs only. |
+| Visual inspection | Agent inspected actual 320px warm/dark synthetic-login screenshots and caregiver destination focus: the padded control fits and heading focus is visible. This is screenshot inspection, not human screen-reader, touch or physical-device testing. |
+| Cleanup / preservation | Vite process trees stopped; port 15382 was free after cleanup. Final source hashes matched the intended candidate, including unchanged backend, migrations, locks, production configuration and the earlier README/browser-test edits. Existing venvs and user data were not opened or modified. |
+
+**Unexpected failure, corrected:** the first unit run passed 82 tests, but both initial production builds rejected three new unit-test queries with **TS2769**: `exact` is a Playwright option, not a Testing Library `ByRoleOptions` member. Removing that unsupported option preserves Testing Library's existing exact string-name matching. The entire 82-test unit suite and both production builds were rerun successfully against the corrected test source. Initial build logs are retained; this was a test typing mistake, not a product failure or dependency change. The browser-tested product/CSS/browser-regression bytes did not change during that correction.
+
+**Flakiness record:** the preceding review's 30-second responsive-test timeout and its single unchanged successful rerun remain recorded above. It was not erased, converted to a clean batch pass or fixed by increasing timeouts. In the current candidate, that same responsive case passed as part of the 17-test batch without rerun; no new browser flakiness was observed. Expected negative-control failures and the corrected TypeScript errors are separately classified.
+
+Commands, from the disposable copy's `frontend`, using the existing Node/npm CLI entry point:
+
+```text
+node node_modules/vitest/vitest.mjs run --maxWorkers=1
+node <npm-cli.js> run build -- --outDir <new-root>/local-dist       # VITE_DATA_MODE=local
+node <npm-cli.js> run build -- --outDir <new-root>/synthetic-dist   # VITE_DATA_MODE=synthetic
+node node_modules/@playwright/test/cli.js test e2e/accessibility-fixes.pw.ts e2e/assistance.pw.ts e2e/sos.pw.ts e2e/support.pw.ts e2e/product-quality.pw.ts --config playwright.config.mjs --output <new-root>/browser-candidate
+```
+
+For the negative control, only the new browser file ran against pre-fix files in the temporary copy, then the candidate bytes were restored before all candidate checks. Logs include `browser-before-fix.log`, `browser-candidate.log`, `frontend-unit-final.log`, `build-local-final.log`, `build-synthetic-final.log`, `accessibility-probe.json`, initial build-error logs and final source hashes under the artifact directory above. Test/build command wall limits were bounded; none expired. No verification wrapper is committed.
+
+These results close the two confirmed findings **within automated coverage**, not the manual accessibility gates. Human keyboard/screen-reader behavior, all rendered contrast states, forced colors, 200–400% zoom/reflow, real-device touch/comfort, alternate engines and safely controlled OS handler behavior remain outstanding. No axe/pa11y/Lighthouse engine was added or claimed. The prior fresh Python **254 backend / 42 pins**, full **22-browser / 3 built-demo / 4 readiness-regression** results remain earlier evidence; backend/data-dependent and complete browser suites were not rerun for these frontend-only changes. No clinical, public-hosting or production-readiness claim is introduced.
+
+## Reproduce safely
+
+Use a new source copy and fresh terminal. Never copy `.env` or a database from a working installation. Do not run mutation suites against a reused server. The browser harness refuses occupied ports and removes only its own temporary test database. The commands below do not apply migrations to an existing database or invoke destructive reset/downgrade tools. Stop on any failed command.
+
+### Windows checks
+
+From the repository root in PowerShell, create an archive of tracked HEAD; copy the candidate test explicitly until it is committed:
+
+```powershell
+$releaseRoot = Join-Path ([IO.Path]::GetTempPath()) ('migramind-release-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $releaseRoot | Out-Null
+git archive --format=zip --output="$releaseRoot/source.zip" HEAD
+if ($LASTEXITCODE) { throw 'Archive failed' }
+Expand-Archive -LiteralPath "$releaseRoot/source.zip" -DestinationPath "$releaseRoot/source"
+Copy-Item frontend/e2e/product-quality.pw.ts "$releaseRoot/source/frontend/e2e/product-quality.pw.ts"
+Set-Location "$releaseRoot/source"
+python -m venv backend/.venv
+if ($LASTEXITCODE) { throw 'venv failed' }
+$python = (Resolve-Path backend/.venv/Scripts/python.exe).Path
+$env:PIP_NO_CACHE_DIR='1'
+$env:npm_config_cache=Join-Path $releaseRoot 'npm-cache'
+& $python -m pip install -r backend/requirements-ml.lock.txt
+if ($LASTEXITCODE) { throw 'pip installation failed' }
+$env:APP_ENV='development'; $env:DATA_MODE='local'; $env:DATABASE_URL='sqlite://'
+Set-Location backend
+if (Test-Path (Join-Path $releaseRoot 'pytest-new')) { throw 'Use a fresh pytest target' }
+& $python -m pytest -q --basetemp (Join-Path $releaseRoot 'pytest-new')
+if ($LASTEXITCODE) { throw 'Backend tests failed' }
+& $python -m pip check
+if ($LASTEXITCODE) { throw 'Dependency compatibility failed' }
+Set-Location ../frontend
+npm.cmd ci
+if ($LASTEXITCODE) { throw 'npm installation failed' }
+node node_modules/vitest/vitest.mjs run --maxWorkers=1
+if ($LASTEXITCODE) { throw 'Frontend tests failed' }
+$env:VITE_API_URL=''
+foreach ($mode in @('local','synthetic')) {
+  $env:VITE_DATA_MODE=$mode
+  npm.cmd run build
+  if ($LASTEXITCODE) { throw "Build failed: $mode" }
+}
+$env:PLAYWRIGHT_BROWSERS_PATH=Join-Path $releaseRoot 'browsers'
+node node_modules/@playwright/test/cli.js install chromium
+if ($LASTEXITCODE) { throw 'Chromium installation failed' }
+# Alternatively use a current installed Chrome, as in this phase's local run:
+# $env:MIGRAMIND_BROWSER='C:/Program Files/Google/Chrome/Application/chrome.exe'
+Set-Location ..
+& $python -m unittest discover -s scripts -p test_ci_browser.py -v
+if ($LASTEXITCODE) { throw 'Readiness tests failed' }
+& $python scripts/ci_browser.py --api-port 18000 --frontend-port 15173
+if ($LASTEXITCODE) { throw 'Browser tests failed' }
+Set-Location frontend
+npm.cmd audit --json
+if ($LASTEXITCODE) { throw 'Review dependency audit results' }
+```
+
+These commands are the reproducible procedure, not a claim that every line completed successfully in the initial audit. Its full Python installation stopped at the transport failures recorded above; feasible subsequent checks used the existing matching Python environment, argument-array subprocess calls (Node/npm CLI 10.9.2) and the installed Chrome alternative. The separate follow-up completed a new Python installation using the bounded installer commands documented above. No global package installation is required.
+
+### Linux checks
+
+Prerequisites: Git, Python 3.13 with venv support, Node 22/npm, and Playwright's Chromium OS libraries. The following reproduces the CI paths locally; installing OS libraries with `--with-deps` requires a separately approved disposable runner/admin environment, as used by CI. It was **not** run in local WSL.
+
+```bash
+set -eu
+release_root=$(mktemp -d -t migramind-release-XXXXXXXX)
+mkdir "$release_root/source"
+git archive HEAD | tar -x -C "$release_root/source"
+cp frontend/e2e/product-quality.pw.ts "$release_root/source/frontend/e2e/product-quality.pw.ts"
+cd "$release_root/source"
+python3.13 -m venv backend/.venv
+release_python="$release_root/source/backend/.venv/bin/python"
+export PIP_NO_CACHE_DIR=1 npm_config_cache="$release_root/npm-cache"
+"$release_python" -m pip install -r backend/requirements-ml.lock.txt
+export APP_ENV=development DATA_MODE=local DATABASE_URL=sqlite://
+(cd backend && "$release_python" -m pytest -q --basetemp "$release_root/pytest-new" && "$release_python" -m pip check)
+(cd frontend && npm ci && node node_modules/vitest/vitest.mjs run --maxWorkers=1)
+(cd frontend && VITE_API_URL='' VITE_DATA_MODE=local npm run build)
+(cd frontend && VITE_API_URL='' VITE_DATA_MODE=synthetic npm run build)
+export PLAYWRIGHT_BROWSERS_PATH="$release_root/browsers"
+(cd frontend && node node_modules/@playwright/test/cli.js install chromium)
+"$release_python" -m unittest discover -s scripts -p test_ci_browser.py -v
+"$release_python" scripts/ci_browser.py --api-port 18000 --frontend-port 15173
+(cd frontend && npm audit --json)
+```
+
+### Synthetic demo startup and five-minute rehearsal
+
+The [README PowerShell startup](../README.md#run-the-synthetic-demo-locally-powershell) creates a new dedicated target and is the Windows operator procedure. The private `getpass` prompt requires an interactive console. For automated verification only, this review generates a fresh random demo-only password in the child-process environment; it is not printed, committed or stored in documentation. No real records are seeded. The initializer refuses every nonempty application table; no reset/delete option exists.
+
+Linux equivalent, **after** the isolated source installation above, from `$release_root/source/backend` in a fresh terminal with `release_root` set to that newly created directory (not an existing installation):
+
+```bash
+set -eu
+demo_root=$(mktemp -d -t migramind-demo-XXXXXXXX)
+export APP_ENV=development DATA_MODE=synthetic
+export DEMO_ACKNOWLEDGEMENT=synthetic-only-no-real-health-data
+export DATABASE_URL="sqlite:///$demo_root/migramind-synthetic-demo.sqlite"
+export CORS_ORIGINS=http://127.0.0.1:5185 ALLOWED_HOSTS=127.0.0.1,localhost PORT=8015
+unset DEMO_PASSWORD
+./.venv/bin/python -m alembic upgrade head
+./.venv/bin/python -m app.demo provision # private interactive demo-only password
+./.venv/bin/python -m app.serve --check
+./.venv/bin/python -m app.serve
+```
+
+In a second terminal inside that **same fresh copy's** `frontend` directory:
+
+```bash
+set -eu
+export VITE_API_URL='' VITE_DATA_MODE=synthetic MIGRAMIND_API_PROXY=http://127.0.0.1:8015
+npm run build
+node node_modules/vite/bin/vite.js preview --host 127.0.0.1 --port 5185 --strictPort
+```
+
+Verify `http://127.0.0.1:8015/api/ready` and `http://127.0.0.1:5185/api/ready` return HTTP 200; the frontend root is `http://127.0.0.1:5185/`, not `/api/health`. Match the host spelling, ports, CORS origin and proxy exactly. Do not increase timeouts or bypass readiness when they disagree. The synthetic fixture is January 2026; use the guide instead of today's calendar. Follow the existing [timed walkthrough](PORTFOLIO_READINESS.md#five-minute-demonstration):
+
+1. 0:00–0:35: explain diary/support purpose, synthetic/read-only boundary, sign in with `demo@synthetic.example.test` and the private password.
+2. 0:35–1:20: Explore daily status; distinguish migraine/no migraine/unknown and view a creation revision.
+3. 1:20–2:05: Show example calendar, inspect the fixed episode and diary; blank days stay unknown.
+4. 2:05–3:35: Explore descriptive insights, explain empty recent windows, Review research features; no prediction or clinical validation is available. Research download is optional and requires explicit local consent.
+5. 3:35–4:30: inspect appearance, saved caregiver notes and Attack Mode; exit with keyboard. Do not activate emergency/contact/share/location actions.
+6. 4:30–5:00: show account isolation/history/availability-aware research tests and CI; disclose hosting/research/accessibility limits and sign out.
+
+The built-demo suite can be run only while this **new isolated fixture** is served: set `MIGRAMIND_DEMO_BASE_URL`, a private `MIGRAMIND_DEMO_PASSWORD`, and `MIGRAMIND_BROWSER` to the installed Chromium executable; run `node node_modules/@playwright/test/cli.js test --config playwright.demo.config.mjs` from `frontend`. The password is a process environment value, not a literal command saved in shell history. On Linux, resolve the downloaded executable with `node --input-type=module -e "import {chromium} from '@playwright/test'; console.log(chromium.executablePath())"` with the same `PLAYWRIGHT_BROWSERS_PATH`. Stop both servers with Ctrl+C; rehearse next time with a new empty target. Do not point these tests at personal data or delete an ambiguous directory.
+
+## Remaining release sign-off
+
+- Human keyboard/screen-reader, zoom, contrast and real-device checks above, including error/retry and populated editable forms. Automated screenshots do not replace them.
+- The approved login emergency target and support-route focus fixes pass their automated regressions; human accessibility review is still open. Keep the earlier browser timeout and successful unchanged rerun, and the subsequent corrected test-typing build error, visible in the validation record.
+- Fresh interactive Linux synthetic-demo rehearsal and any intended alternate browser; patch-level runtime and OS review.
+- The follow-up closes the bounded fresh Windows Python/ML-lock installation check on 3.13.12. The exact earlier 3.13.11 interpreter was not rerun, the source of the transport failures remains unidentified, and pip's incomplete-download cleanup defect remains present; preserve these limits when reproducing or presenting results.
+- Public deployment, PostgreSQL/TLS/roles, backups/recovery, monitoring and independent security review remain separate unapproved work.
+- No real health-data/research/clinical release until the existing governance and validation gates are independently met.
+- Review this candidate's documentation/test diff and rerun its added browser test in GitHub if publication is later authorized. No publication action is part of this phase.
