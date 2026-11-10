@@ -16,11 +16,17 @@ export function DailyCheckin({demoMode=false}:{demoMode?:boolean}={}){
  const [editing,setEditing]=useState<Checkin|null>(null),[formKey,setFormKey]=useState(0),[busy,setBusy]=useState(false);
  const [history,setHistory]=useState<{id:number,revisions:Revision[]}|null>(null);
  const formRef=useRef<HTMLFormElement>(null);
+ const correctionOpener=useRef<HTMLButtonElement|null>(null),cancelFocus=useRef(false);
  async function load(){setLoading(true);try{const data=await api('daily-checkins?include_deleted=true');if(!Array.isArray(data))throw new Error();setRows(data);setLoaded(true);setError('')}catch{setLoaded(false);setError('Check-ins could not be loaded. Retry before saving.')}finally{setLoading(false)}}
  useEffect(()=>{load()},[]);
- useEffect(()=>{if(editing)formRef.current?.querySelector<HTMLSelectElement>('select[name="status"]')?.focus()},[editing,formKey]);
+ useEffect(()=>{
+  const restore=cancelFocus.current;cancelFocus.current=false;
+  const status=formRef.current?.querySelector<HTMLSelectElement>('select[name="status"]');
+  if(editing)status?.focus();
+  else if(restore){const opener=correctionOpener.current;(opener?.isConnected&&!opener.disabled?opener:status)?.focus()}
+ },[editing,formKey]);
  const [completedDay,setCompletedDay]=useState<Date|null>(null);
- function reviewYesterday(){const day=new Date();day.setDate(day.getDate()-1);day.setHours(12,0,0,0);const existing=rows.find(r=>r.date===localDate(day));if(existing?.deleted_at){setNotice('Yesterday has deleted history. Review its history below; it cannot be replaced.');return}setEditing(existing||null);setCompletedDay(day);setFormKey(k=>k+1);setNotice('Review yesterday, choose a status, then save to explicitly confirm the completed day.');}
+ function reviewYesterday(event:React.MouseEvent<HTMLButtonElement>){const day=new Date();day.setDate(day.getDate()-1);day.setHours(12,0,0,0);const existing=rows.find(r=>r.date===localDate(day));if(existing?.deleted_at){setNotice('Yesterday has deleted history. Review its history below; it cannot be replaced.');return}correctionOpener.current=event.currentTarget;setEditing(existing||null);setCompletedDay(day);setFormKey(k=>k+1);setNotice('Review yesterday, choose a status, then save to explicitly confirm the completed day.');}
  const values=editing?.values;
  async function save(e:React.FormEvent<HTMLFormElement>){
   e.preventDefault();setBusy(true);setError('');setNotice('');
@@ -59,7 +65,7 @@ export function DailyCheckin({demoMode=false}:{demoMode?:boolean}={}){
  <label>Routine changes (optional)<textarea name="routine_changes" maxLength={1000} defaultValue={values?.routine_changes||''}/></label>
  <label>Early symptoms (optional)<textarea name="early_symptoms" maxLength={1000} defaultValue={values?.early_symptoms||''}/></label>
  </details>
- <div className="actions"><button className="primary" type="submit">{busy?'Saving…':editing?'Save correction':'Save daily check-in'}</button>{editing&&<button type="button" className="secondary" onClick={()=>{setEditing(null);setCompletedDay(null);setFormKey(k=>k+1)}}>Cancel correction</button>}</div>
+ <div className="actions"><button className="primary" type="submit">{busy?'Saving…':editing?'Save correction':'Save daily check-in'}</button>{editing&&<button type="button" className="secondary" onClick={()=>{cancelFocus.current=true;setEditing(null);setCompletedDay(null);setFormKey(k=>k+1)}}>Cancel correction</button>}</div>
  </fieldset></form></>}
  {!loading&&!rows.length&&<p className="empty">{demoMode?"No demonstration reports are available. Use Reload check-ins if loading failed.":"No daily reports yet. Choose a status and save; every health observation is optional."}</p>}
  {rows.map(row=><article className="tracking-entry" key={row.id}><h3>{row.date} — {row.deleted_at?'Deleted check-in':statusLabel[row.values!.status]}</h3>
@@ -67,7 +73,7 @@ export function DailyCheckin({demoMode=false}:{demoMode?:boolean}={}){
  <p>First entered: {new Date(row.created_at).toLocaleString()}</p>
  {row.values&&<p>Event: {new Date(row.values.event_at).toLocaleString()} · Observed: {new Date(row.values.observed_at).toLocaleString()}</p>}
  {(row.episode_discrepancy||row.wellness_discrepancy)&&<p role="status">Discrepancy: {row.episode_discrepancy==='no_migraine_with_diary_episode'?'a diary episode overlaps this no-migraine report.':row.episode_discrepancy==='migraine_without_diary_episode'?'migraine reported without a diary episode.':''} {row.wellness_discrepancy?'The older wellness status differs.':''} Review both records; neither has been overwritten.</p>}
- <div className="actions">{!demoMode&&!row.deleted_at&&<><button className="secondary" disabled={busy} onClick={()=>{setEditing(row);setFormKey(k=>k+1);setNotice('');document.querySelector<HTMLFormElement>('form[aria-label="Daily migraine check-in"]')?.scrollIntoView?.({block:'start'})}}>Edit {row.date}</button><button className="secondary" disabled={busy} onClick={()=>remove(row)}>Delete {row.date}</button></>}
+ <div className="actions">{!demoMode&&!row.deleted_at&&<><button className="secondary" disabled={busy} onClick={event=>{correctionOpener.current=event.currentTarget;setEditing(row);setFormKey(k=>k+1);setNotice('');document.querySelector<HTMLFormElement>('form[aria-label="Daily migraine check-in"]')?.scrollIntoView?.({block:'start'})}}>Edit {row.date}</button><button className="secondary" disabled={busy} onClick={()=>remove(row)}>Delete {row.date}</button></>}
  <button className="secondary" onClick={()=>showHistory(row)}>History {row.date}</button></div>
  {history?.id===row.id&&<section aria-label={`History ${row.date}`}><h4>Private revision history</h4><button className="secondary" onClick={()=>setHistory(null)}>Close history</button>{history.revisions.map(rev=><details key={rev.id}><summary>Revision {rev.revision}: {rev.action} — {new Date(rev.recorded_at).toLocaleString()}</summary>{rev.values?<dl>{Object.entries(rev.values).map(([key,value])=><div key={key}><dt>{key.replaceAll('_',' ')}</dt><dd>{value===null?'Not recorded':String(value)}</dd></div>)}</dl>:<p>Deletion tombstone. Earlier values remain in prior revisions.</p>}</details>)}</section>}
  </article>)}
