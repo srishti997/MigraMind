@@ -1,5 +1,42 @@
 # Phase 2: release readiness
 
+## Phase 6: approved synthetic authenticated-backup prototype (2026-11-10)
+
+Verified `security/data-protection` at `07ae0b1`, merged PR #20, with only the existing Phase 6 documentation edits before work. The user separately approved a **synthetic-only** proof of concept under [prototypes/synthetic_encrypted_backup](../prototypes/synthetic_encrypted_backup/README.md). The [plan follow-up](DATA_PROTECTION_PLAN.md#approved-synthetic-only-encrypted-prototype-follow-up-2026-11-10) preserves the earlier design/drill evidence and records exact implementation, dependencies, runs and limits.
+
+Uses PyCA **cryptography 50.0.2 / AES-256-GCM**, fresh 256-bit memory-only key and 96-bit nonce, 128-bit tag, exact-header authenticated metadata and strict bounded format/schema validation. Generates random fictional JSON only; accepts no input/key/destination paths. Recovery validates fully before staging, then atomically publishes a **new-only** fixed sandbox name via hard link; existing targets are never replaced. Keys are not printed/persisted and references/files are dropped/cleaned at context exit; this is intentionally not durable key recovery or secure memory erasure.
+
+| Prototype verification | Actual result / limit |
+| --- | --- |
+| Final Windows | **19 tests passed**, zero failed/skipped; Python **3.13.12**, **0.736s suite / 1.683s wall**. Demo and `pip check` passed in new standalone venv. |
+| Final WSL | **19 tests passed**, zero failed/skipped; Python **3.10.12**, **0.223s suite / 0.418s wall**. Demo and `pip check` passed in a new venv without system ensurepip installation. Not application Python 3.13/CI validation. |
+| Covered failures | Wrong key, metadata/nonce/ciphertext/tag tampering, truncation/size/version/contract validation, authenticated malformed payloads, no pre-validation staging, existing-target preservation, injected I/O failures and concurrent publication. |
+| Dependencies | Only prototype requirements added: cryptography **50.0.2**, cffi **2.1.1**, pycparser **3.11**, conditional typing_extensions **4.16.0**. Official PyPI metadata/artifact hashes and actual library/OpenSSL versions retained; application locks unchanged. |
+| Initial setup issue | Windows verified-wheel launcher triggered pip's self-modification guard before installing dependencies. Corrected module invocation, retained the failure, then succeeded; no protection disabled or version substituted. |
+| Development evidence | Initial WSL 17 tests passed, then two cases/stronger assertions were added; intermediate and final Windows 19-test runs passed. A fresh final WSL environment was created when the initial temporary one was unavailable. No cryptographic assertion failed or was rerun to hide a failure. |
+
+Only four prototype files and these two Phase 6 reports change. No application integration, existing file/data/DB/WAL/backup/export/browser/secret access, production dependency/configuration change, migration, OS encryption change, credential change or cloud deployment. No commit, push, PR or merge. **SP4-01/High and public/real-data release remain blocked:** SQLite consistency, durable/recoverable key custody, trusted operator provenance, retention/restore erasure, session revocation, actual storage/hosting protection and other security/manual/research gates are unverified. Passing an ephemeral JSON AEAD experiment does not secure MigraMind's existing databases or copies.
+
+## Historical Phase 6 design and earlier release evidence
+
+## Phase 6: data protection design and safe validation (2026-11-10)
+
+Verified clean `security/data-protection` at **`07ae0b1`**, merged PR #20, before work. The new [data-protection and backup plan](DATA_PROTECTION_PLAN.md) maps confirmed storage mechanisms versus unknown OS/cloud copies, defines the local and future-hosting threat models, and provides adoption, acceptance, recovery/rollback and approval steps. **Design only; no encryption enabled, key created, existing data moved or application/deployment configuration changed.**
+
+Recommended local layers: active full-disk encryption on covered volumes, an owner-approved durable nonsynced private root, inherited restricted permissions, controlled exports, separately encrypted/authenticated portable backups and independent recovery custody. Full-disk encryption does not protect plaintext after an unlocked application or sync/export client reads it. Future hosting separately requires encrypted volumes/snapshots/WAL/backups, verified TLS, KMS and restricted runtime/backup/restore identities. None was implemented here.
+
+| Phase 6 evidence | Actual result / limit |
+| --- | --- |
+| Synthetic file backup/recovery | Same **12 JSON-only cases passed on Windows and WSL**, covering exact snapshot/restore, corruption/truncation detection, contract/path/overwrite refusal and source preservation. Not SQLite, encrypted-archive or disaster-recovery validation; no database file created/opened. |
+| Windows permissions | New temporary root DACL restricted to current OS SID and SYSTEM, protected inheritance, inherited child sentinel and owner write/read verified. Separate read-only ACL probe **blocked** by missing `SeSecurityPrivilege`; no privilege/policy changes or effective-denial pass claimed. |
+| WSL permissions | New fixture directory **0700**, JSON **0600**, umask **0077**; non-root owner write to separate **0400** probe denied as expected. No different-identity test or actual private-path inspection. Python 3.10 standard-library drill is not project Python 3.13 validation. |
+| Checksum threat demonstration | Replacing both a synthetic copy and its unkeyed digest manifest was accepted by a hash-only check. Checksums alone do not authenticate backups; provenance/authentication remains a design requirement. |
+| Documentation/integrity | Source/reference review and final documentation/scope checks only; no application tests, migrations, provisioning, encryption/key exercise or existing-data inspection. Earlier phase test counts remain historical. |
+
+**SP4-01 / High remains open**, as do copy retention/erasure (SP4-05), actual hosted operations (SP4-06) and the other security/privacy/manual/research release gates. Real-data/public release remains blocked. Actual device encryption/sync/backup coverage, authenticated encrypted recovery, SQLite/WAL consistency, independent identities and recovery on another device remain unverified. Only `docs/DATA_PROTECTION_PLAN.md` and this report change; no audit history, code, dependencies/locks, migrations, existing backups, secrets or production settings were modified. No commit, push, PR, merge or deployment. Any implementation requires separate approval.
+
+## Historical Phase 5 and earlier evidence
+
 ## Phase 5: P1-only installer remediation (2026-11-10)
 
 **Approved P1 implementation:** README and the backend/browser CI jobs now bootstrap exact **pip 26.3** before unchanged locked application installs and assert its installed version. README refuses an existing `.venv`; existing developer environments were not upgraded. Bootstrap/install commands use isolated pip configuration, explicit official PyPI, disabled version checks, noninteractive/no-cache operation and bounded network retries/timeouts. No application, lock, migration, production deployment setting or data change; no P2/P3/P4 work. The [Phase 5 audit evidence](SECURITY_PRIVACY_AUDIT.md#phase-5-approved-p1-installer-remediation-2026-11-10) preserves the earlier audit/planning snapshots and reports every failure/retry.
