@@ -26,7 +26,7 @@ type Contact={id:number,name:string,relationship:string,phone:string};
 type Profile={name:string,support:string,avoid:string,communication:string,environment?:string};
 
 const nav=[['Overview',LayoutDashboard],['Daily status',Leaf],['Migraine diary',BookOpen],['Calendar',CalendarDays],['Insights',Activity],['Wellness',Leaf],['Early symptoms',Activity],['Trusted contacts',Users],['Caregiver profile',Heart],['Support feedback',BookOpen],['Settings',Settings],['Account',ShieldCheck]] as const;
-export function App({account,onAccountChange,onLogout,onDeleted,demoMode=false}:{demoMode?:boolean,account?:Account,onAccountChange?:(u:Account)=>void,onLogout?:()=>Promise<void>,onDeleted?:()=>void}={}){
+export function App({account,onAccountChange,onLogout,onDeleted,demoMode=false}:{demoMode?:boolean,account?:Account,onAccountChange?:(u:Account)=>void,onLogout?:(password?:string)=>Promise<void>,onDeleted?:()=>void}={}){
  const [page,setPage]=useState('Overview'),[episodes,setEpisodes]=useState<Episode[]>([]),[contacts,setContacts]=useState<Contact[]>([]),[profile,setProfile]=useState<Profile>({name:account?.display_name||'Alex',support:'',avoid:'',communication:''}),[error,setError]=useState(''),[loading,setLoading]=useState(true),[modal,setModal]=useState<ModalKind|null>(null),[editing,setEditing]=useState<number|null>(null),[attack,setAttack]=useState(false),[month,setMonth]=useState(new Date(new Date().getFullYear(),new Date().getMonth(),1)),[selected,setSelected]=useState(''),[notice,setNotice]=useState(''),[saving,setSaving]=useState(false);
  const heading=useRef<HTMLHeadingElement>(null);
  const previousPage=useRef(page);
