@@ -43,6 +43,9 @@ class DeleteAccount(BaseModel):
     model_config = ConfigDict(extra='forbid')
     password: str = Field(min_length=1, max_length=128, repr=False)
     confirmation: str
+class PasswordConfirmation(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    password: str = Field(min_length=1, max_length=128, repr=False)
 class ConsentIn(BaseModel):
     model_config = ConfigDict(extra='forbid')
     contact_id: int = Field(gt=0)
@@ -141,6 +144,17 @@ class Authentication:
         @app.post('/api/auth/logout',status_code=204)
         def logout(request:Request,response:Response,user=Depends(require_user),s=Depends(db)):
             s.delete(session(request,s));s.commit()
+            response.delete_cookie(cookie,path='/',secure=secure,httponly=True,samesite='lax')
+        @app.post('/api/auth/logout-all',status_code=204)
+        def logout_all(data:PasswordConfirmation,request:Request,response:Response,user=Depends(require_user),s=Depends(db)):
+            if settings.synthetic_demo:
+                raise HTTPException(403,'Signing out all sessions is unavailable in the shared synthetic demonstration')
+            attempts(request,user.email)
+            try: valid=hasher.verify(user.password_hash,data.password)
+            except (VerificationError,InvalidHashError): valid=False
+            if not valid: raise HTTPException(400,'Password confirmation failed')
+            s.query(LoginSession).filter_by(user_id=user.id).delete(synchronize_session=False)
+            s.commit()
             response.delete_cookie(cookie,path='/',secure=secure,httponly=True,samesite='lax')
         @app.get('/api/account')
         def account(user=Depends(require_user)): return public(user)

@@ -5,9 +5,34 @@ import {cleanup,render,screen,fireEvent,waitFor,act} from '@testing-library/reac
 import {Authentication} from './Authentication';
 import {AccountSettings} from './AccountSettings';
 import {clearAuthentication} from './api';
-vi.mock('./main',()=>({App:({onLogout}:{onLogout:()=>void})=> <div>Private workspace<button onClick={onLogout}>Test sign out</button></div>}));
+vi.mock('./main',()=>({App:({onLogout}:{onLogout:(password?:string)=>Promise<void>})=> <div>Private workspace<button onClick={()=>onLogout()}>Test sign out</button><button onClick={()=>{void onLogout('Synthetic-password-123').catch(()=>{})}}>Test sign out all</button></div>}));
 afterEach(()=>{cleanup();vi.useRealTimers();vi.restoreAllMocks();vi.unstubAllGlobals();clearAuthentication()});
 const account={id:1,email:'synthetic@example.test',display_name:'Synthetic',created_at:'2026-10-19T00:00:00Z'};
+
+test('confirmed global logout clears workspace and returns to fresh anonymous sign-in',async()=>{
+ let signedOut=false;
+ const fetcher=vi.spyOn(globalThis,'fetch').mockImplementation(async input=>{
+  if(String(input).endsWith('auth/logout-all')){signedOut=true;return new Response(null,{status:204})}
+  return new Response(JSON.stringify({user:signedOut?null:account,csrf_token:signedOut?'anonymous-token':'account-token'}));
+ });
+ render(<Authentication/>);await screen.findByText('Private workspace');
+ fireEvent.click(screen.getByRole('button',{name:'Test sign out all'}));
+ expect(await screen.findByRole('button',{name:'Sign in'})).toBeVisible();
+ expect(screen.queryByText('Private workspace')).toBeNull();
+ const request=fetcher.mock.calls.find(([path])=>String(path).endsWith('auth/logout-all'))![1]!;
+ expect(request.method).toBe('POST');expect(JSON.parse(String(request.body))).toEqual({password:'Synthetic-password-123'});
+ expect(request.headers).toMatchObject({'X-CSRF-Token':'account-token'});
+});
+
+test('global logout failure does not clear authenticated state or claim success',async()=>{
+ vi.spyOn(globalThis,'fetch').mockImplementation(async input=>String(input).endsWith('auth/logout-all')
+  ?new Response(JSON.stringify({detail:'Password confirmation failed'}),{status:400})
+  :new Response(JSON.stringify({user:account,csrf_token:'account-token'})));
+ render(<Authentication/>);await screen.findByText('Private workspace');
+ await act(async()=>{fireEvent.click(screen.getByRole('button',{name:'Test sign out all'}))});
+ expect(screen.getByText('Private workspace')).toBeVisible();
+ expect(screen.queryByRole('button',{name:'Sign in'})).toBeNull();
+});
 
 test('server demo mode labels the workspace and disables personal registration',async()=>{
  vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify({user:null,demo_mode:true,csrf_token:'synthetic-token'})));

@@ -1,5 +1,45 @@
 # Phase 2: release readiness
 
+## Phase 7: approved Sign out all sessions implementation (2026-11-11)
+
+Verified `security/session-recovery` at `4b3a45f` and preserved the only starting changes: the two uncommitted Phase 7 documents. The [approved implementation follow-up](SESSION_SECURITY_PLAN.md#approved-follow-up-password-reauthenticated-sign-out-all-sessions-2026-11-11) supersedes only the earlier S7-02 implementation-pending status; the original audit snapshots below remain intact.
+
+Account & Privacy now offers an inline **Sign out all sessions** confirmation requiring the current password. The protected `POST /api/auth/logout-all` uses existing Argon2 verification, authenticated ownership, Origin/CSRF and attempt budgets, then transactionally deletes all session rows for that user, including current, before expiring the cookie. It does not delete the account or health data. The UI clears authentication and returns to fresh sign-in only after confirmed success; cancellation sends nothing and restores focus, and failures are shown without success claims. Shared read-only demo global revocation is explicitly unavailable; ordinary logout remains unchanged. No migration, process-local revocation workaround, rate-limit redesign or production configuration change.
+
+| Approved implementation validation | Actual Windows evidence |
+| --- | --- |
+| Backend suite | **245 passed, 5 migration cases deselected**, 36.92s pytest / 38.77s wall; deployment/provisioning module excluded. Includes 12 new session-revocation cases. |
+| Frontend suite | **91 passed / 15 files**, 45.30s suite / 46.54s wall |
+| Affected frontend verification after test-type correction | **15 passed / 2 files**, 7.35s suite / 8.04s wall; overlaps full suite |
+| Isolated Playwright | **22 passed**, 22.2s suite / 25.88s wall; installed Chrome/Edge desktop and 320px viewports, mocked API, temporary profiles, retries=0 |
+| Local / synthetic production builds | Both passed TypeScript + Vite, **7.61s / 7.48s wall** |
+| Documentation / integrity | **59 local links / 37 source references**, 123 tested source/configuration files matched; original uncommitted document bodies preserved; locks, migrations and protected configuration unchanged; diff whitespace passed |
+| Failures | First two builds failed TypeScript on eight new unit-test queries using unsupported `exact`; corrected test options, reran affected tests and each build once. No application workaround, timeout increase, unit/backend/browser failure or hidden flaky rerun. Existing TestClient deprecation and temporary Vite outDir warnings remain. |
+
+Backend evidence covers wrong password/auth/CSRF refusal, owner-selector rejection, multi-session/current-cookie replay, other users and saved records remaining intact, failed-commit rollback, existing reauthentication budget and cookie attributes. Independent apps/engines sharing a new synthetic SQLite file and a third fresh engine rejected revoked credentials: durable lookup/deletion, not a memory list. This is not an actual multi-process, Linux or hosted PostgreSQL test. Browser results demonstrate rendered keyboard/focus/cancel/success/failure and reflow behavior with intercepted responses, not real-API or human/device verification.
+
+All tests/builds used a new filtered temporary source tree and synthetic databases only. Existing isolated dependencies were reused read-only; no install, existing data/database/WAL/backup/secret access, migration, provisioning, real account operation, email or deployment. Full API/browser/demo provisioning harnesses were skipped. Exact commands, limits, evidence artifacts, security guarantees and rollback are in the plan.
+
+**Remaining release gates:** S7-02 is addressed for the supported local prototype; **SP4-03 remains partially open** for idle expiry, verified password change/recovery and session inventory. SP4-01/High storage/copies, shared abuse/hosting, restore/retention, offline logout/privacy, human accessibility/device and research gates remain. New logins with a known password can still create sessions; already-authorized requests/rendered data cannot be recalled, and database restore must not resurrect revoked sessions. Real-health/public release remains **NO-GO**. No commit, push, PR, merge or deployment.
+
+## Phase 7: session security and account recovery review (2026-11-11)
+
+Verified clean `security/session-recovery` at **`4b3a45f`**, merge of PR #21, before work. The [session-security and recovery plan](SESSION_SECURITY_PLAN.md) maps actual authentication, cookie/CSRF, expiry, revocation, ownership and missing recovery capabilities, with source references, synthetic reproduction steps and proposed acceptance/rollback criteria. **Audit and planning only; no application changes.** Prior audit and Phase 6 evidence below are preserved.
+
+Confirmed controls: Argon2id; opaque random cookie sessions with stored digests; login/registration rotation; server absolute expiry; production Secure/HttpOnly/host-only/SameSite cookies; Origin/CSRF checks; current-session logout; scoped account/record access. No new Critical/High or cross-account disclosure was confirmed. Missing idle expiry, non-destructive revoke-all and verified password change/recovery refine **SP4-03 / Medium**. Process-local abuse controls and pre-CSRF account-budget pressure refine **SP4-04 / Medium**. Local registration enumeration and mounted private UI after failed logout are **Low**, with prerequisites and bounded evidence in the plan. No reset-token flow exists to validate.
+
+| Phase 7 check | Actual Windows result |
+| --- | --- |
+| Existing selected backend modules | **100 passed, 2 migration tests deselected**, 17.39s pytest / 18.93s wall |
+| Temporary synthetic backend observations | **7 passed**, 3.57s pytest / 5.16s wall |
+| Existing frontend authentication/client unit tests | **15 passed / 2 files**, 11.95s suite / 13.86s wall |
+| Temporary mocked-frontend logout observation | **1 passed**, 3.89s suite / 5.15s wall |
+| Failures / retries | Initial backend and observation collections had 5 and 1 errors respectively because the temporary copy omitted research Python source. Added that source to the temporary copy; one rerun each passed under unchanged limits. No product/dependency fix or hidden rerun. Existing Starlette/httpx deprecation warning remains. |
+
+Tests used new filtered temporary source, in-memory fixture databases and fictional accounts only; prior isolated Python dependencies were reused read-only, and matching locked Node dependencies copied. No installs, existing database/account/token/secret access, actual browser profile, migration, provisioning, external service or email. No fresh Linux, browser, build, load, deployment or physical-device result is claimed; full browser/demo harnesses that provision/migrate were excluded. Exact command shapes, logs, limits and observations are in the plan.
+
+**Real-health/public release remains NO-GO:** SP4-01/High storage/copies, SP4-03 account compromise/recovery, SP4-04/06 hosted abuse/operations, retention/restore erasure and the human accessibility/device/research gates remain open. Proposed first implementation is password-reauthenticated **sign out all sessions**, including current, without deleting health records or changing ordinary logout semantics. It requires separate approval; idle expiry, password change/verified recovery and other remediation are not implemented. Only `docs/SESSION_SECURITY_PLAN.md` and this report change. No commit, push, PR, merge or deployment.
+
 ## Phase 6: approved synthetic authenticated-backup prototype (2026-11-10)
 
 Verified `security/data-protection` at `07ae0b1`, merged PR #20, with only the existing Phase 6 documentation edits before work. The user separately approved a **synthetic-only** proof of concept under [prototypes/synthetic_encrypted_backup](../prototypes/synthetic_encrypted_backup/README.md). The [plan follow-up](DATA_PROTECTION_PLAN.md#approved-synthetic-only-encrypted-prototype-follow-up-2026-11-10) preserves the earlier design/drill evidence and records exact implementation, dependencies, runs and limits.
