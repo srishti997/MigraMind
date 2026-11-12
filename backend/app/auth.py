@@ -10,11 +10,19 @@ from argon2.exceptions import VerificationError, InvalidHashError
 from fastapi import Depends, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import text
 from .security import SecuritySettings
 from .deployment import DEMO_EMAIL
 
 hasher = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=2, type=Type.ID)
 DUMMY_HASH = hasher.hash(secrets.token_urlsafe(32))
+IDLE_TIMEOUT_MS = 30 * 60 * 1000
+EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+def epoch_ms(value):
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError('Session clock must be timezone-aware')
+    return (value - EPOCH) // timedelta(milliseconds=1)
 def now(): return datetime.now(timezone.utc)
 def digest(value): return hashlib.sha256(value.encode()).hexdigest()
 def owned(s, model, user): return s.query(model).filter_by(owner_id=user.id)
@@ -46,6 +54,10 @@ class DeleteAccount(BaseModel):
 class PasswordConfirmation(BaseModel):
     model_config = ConfigDict(extra='forbid')
     password: str = Field(min_length=1, max_length=128, repr=False)
+class ActivityIn(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    # A concurrency/retry precondition, never a trusted client clock.
+    expected_last_activity_at_ms: int = Field(strict=True, ge=0, le=2**63-1)
 class ConsentIn(BaseModel):
     model_config = ConfigDict(extra='forbid')
     contact_id: int = Field(gt=0)
@@ -67,20 +79,33 @@ class Limiter:
     def clear(self): self.windows.clear()
 
 class Authentication:
-    def __init__(self, app, db, User, LoginSession, Consent, Contact, models, settings=None):
+    def __init__(self, app, db, User, LoginSession, Consent, Contact, models, settings=None, clock=None):
         self.limiter = Limiter()
         settings = settings or SecuritySettings.load()
         secure = settings.production
         cookie = '__Host-migramind_session' if secure else 'migramind_session'
         origins = set(settings.origins)
         ttl = settings.session_hours
-        def session(request, s):
-            raw = request.cookies.get(cookie, '')
-            row = s.query(LoginSession).filter_by(token_digest=digest(raw)).first() if raw else None
+        idle_enabled = settings.session_idle_timeout_enabled
+        def current_time(): return clock() if clock is not None else now()
+        def valid(row, stamp):
+            if row is None: return False
             try:
-                return row if row and datetime.fromisoformat(row.expires_at) > now() else None
-            except (ValueError, TypeError):
-                return None
+                if datetime.fromisoformat(row.expires_at) <= stamp: return False
+                if idle_enabled and row.user_id is not None:
+                    activity = row.last_activity_at_ms
+                    tick = epoch_ms(stamp)
+                    if not isinstance(activity, int) or not 0 <= activity <= tick < activity + IDLE_TIMEOUT_MS:
+                        return False
+                return True
+            except (ValueError, TypeError, OverflowError):
+                return False
+        def session(request, s, lock=False):
+            raw = request.cookies.get(cookie, '')
+            query = s.query(LoginSession).filter_by(token_digest=digest(raw))
+            if lock: query = query.with_for_update()
+            row = query.first() if raw else None
+            return row if valid(row, current_time()) else None
         def csrf(request, row):
             if request.headers.get('origin') not in origins:
                 raise HTTPException(403, 'Request origin is not allowed')
@@ -100,13 +125,22 @@ class Authentication:
             return user
         self.require_user = require_user
         def public(user): return {'id':user.id,'email':user.email,'display_name':user.display_name,'created_at':user.created_at} if user else None
+        def state(row, user, stamp):
+            result = {'user':public(user),'csrf_token':row.csrf_token,'expires_at':row.expires_at,'demo_mode':settings.synthetic_demo}
+            if idle_enabled and user is not None:
+                result.update(server_time=stamp.isoformat(), last_activity_at_ms=row.last_activity_at_ms,
+                    idle_expires_at=min(datetime.fromisoformat(row.expires_at),
+                        EPOCH+timedelta(milliseconds=row.last_activity_at_ms+IDLE_TIMEOUT_MS)).isoformat())
+            return result
         def issue(s, response, user=None, previous=None):
             if previous: s.delete(previous)
             raw = secrets.token_urlsafe(32)
-            row = LoginSession(user_id=user.id if user else None, token_digest=digest(raw), csrf_token=secrets.token_urlsafe(32), expires_at=(now()+timedelta(hours=ttl if user else 1)).isoformat())
+            stamp = current_time()
+            row = LoginSession(user_id=user.id if user else None, token_digest=digest(raw), csrf_token=secrets.token_urlsafe(32), expires_at=(stamp+timedelta(hours=ttl if user else 1)).isoformat(),
+                last_activity_at_ms=epoch_ms(stamp) if user else None)
             s.add(row); s.commit()
             response.set_cookie(cookie, raw, httponly=True, secure=secure, samesite='lax', path='/', max_age=ttl*3600 if user else 3600)
-            return {'user':public(user),'csrf_token':row.csrf_token,'expires_at':row.expires_at,'demo_mode':settings.synthetic_demo}
+            return state(row,user,stamp)
         def attempts(request, email=''):
             self.limiter.check(('ip', request.client.host if request.client else 'unknown'), 30)
             if email: self.limiter.check(('account',digest(email)),10)
@@ -114,11 +148,37 @@ class Authentication:
         def bootstrap(request: Request, response: Response, s=Depends(db)):
             row = session(request,s)
             if row:
-                return {'user':public(s.get(User,row.user_id)) if row.user_id else None,'csrf_token':row.csrf_token,'expires_at':row.expires_at,'demo_mode':settings.synthetic_demo}
+                return state(row,s.get(User,row.user_id) if row.user_id else None,current_time())
             attempts(request)
             # Expired sessions are removed; opaque identifiers never reused on login.
-            s.query(LoginSession).filter(LoginSession.expires_at < now().isoformat()).delete()
+            s.query(LoginSession).filter(LoginSession.expires_at < current_time().isoformat()).delete()
             return issue(s,response)
+        @app.post('/api/auth/activity')
+        def activity(data:ActivityIn,request:Request,user=Depends(require_user),s=Depends(db)):
+            if not idle_enabled: raise HTTPException(409,'Session activity tracking is disabled')
+            user_id = user.id
+            # End the preliminary read-only auth transaction. This route has no health writes.
+            s.rollback()
+            dialect = s.get_bind().dialect.name
+            if dialect == 'sqlite': s.execute(text('BEGIN IMMEDIATE'))
+            elif dialect != 'postgresql': raise HTTPException(503,'Session activity is unavailable')
+            # PostgreSQL locks this row; SQLite already holds its writer reservation.
+            # Recheck after waiting, including CSRF and expiry, never upsert on a miss.
+            row = session(request,s,lock=dialect == 'postgresql')
+            if not row or row.user_id != user_id or s.get(User,user_id) is None:
+                raise HTTPException(401,'Sign in to continue')
+            csrf(request,row)
+            stamp = current_time()
+            if not valid(row,stamp): raise HTTPException(401,'Sign in to continue')
+            tick = epoch_ms(stamp)
+            if row.last_activity_at_ms != data.expected_last_activity_at_ms or tick <= row.last_activity_at_ms:
+                raise HTTPException(409,'Activity was not refreshed. Check the session before a new interaction.')
+            row.last_activity_at_ms = tick
+            result = {'server_time':stamp.isoformat(), 'expires_at':row.expires_at,
+                'last_activity_at_ms':tick, 'idle_expires_at':min(datetime.fromisoformat(row.expires_at),
+                    EPOCH+timedelta(milliseconds=tick+IDLE_TIMEOUT_MS)).isoformat()}
+            s.commit()
+            return result
         @app.post('/api/auth/register', status_code=201)
         def register(data:Registration, request:Request, response:Response, s=Depends(db)):
             if settings.synthetic_demo: raise HTTPException(403, 'Registration is disabled in the synthetic demonstration')

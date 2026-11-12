@@ -4,7 +4,7 @@ from sqlalchemy import text
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
-SCHEMA_REVISION = '009'
+SCHEMA_REVISION = '010'
 FIXTURE_VERSION = 'synthetic-demo/v1'
 DEMO_EMAIL = 'demo@synthetic.example.test'
 

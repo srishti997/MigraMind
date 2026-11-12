@@ -17,6 +17,7 @@ class SecuritySettings:
     session_hours: int
     database_url: str = field(repr=False)
     synthetic_demo: bool = False
+    session_idle_timeout_enabled: bool = False
 
     @classmethod
     def load(cls, environment=None):
@@ -67,6 +68,12 @@ class SecuritySettings:
                 raise ValueError()
         except ValueError:
             raise RuntimeError('SESSION_HOURS must be an integer from 1 to 168') from None
+        idle_flag = env.get('SESSION_IDLE_TIMEOUT_ENABLED', 'false')
+        if idle_flag not in ('true', 'false'):
+            raise RuntimeError('SESSION_IDLE_TIMEOUT_ENABLED must be true or false')
+        idle_enabled = idle_flag == 'true'
+        if idle_enabled and (production or synthetic_demo):
+            raise RuntimeError('Idle timeout foundation is limited to explicit local development testing')
         database_url = env.get('DATABASE_URL', 'sqlite:///./migramind.db')
         try:
             database = make_url(database_url)
@@ -84,7 +91,7 @@ class SecuritySettings:
         except Exception:
             # Never interpolate a database URL/driver exception containing credentials.
             raise RuntimeError('Invalid DATABASE_URL; production requires PostgreSQL TLS verification; demo requires a dedicated synthetic-demo database name') from None
-        return cls(production, origins, hosts, ttl, database_url, synthetic_demo)
+        return cls(production, origins, hosts, ttl, database_url, synthetic_demo, idle_enabled)
 
 
 class PrivateBoundary:

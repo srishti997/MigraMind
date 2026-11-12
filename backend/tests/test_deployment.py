@@ -201,7 +201,8 @@ def test_009_preserves_008_records_and_is_idempotent(tmp_path):
         assert connection.execute('SELECT * FROM demo_deployments').fetchall()==[]
         assert connection.execute('SELECT version_num FROM alembic_version').fetchone()[0]==SCHEMA_REVISION
     refused=subprocess.run([sys.executable,'-m','alembic','downgrade','008'],cwd=BACKEND,env=env,capture_output=True,text=True)
-    assert refused.returncode!=0 and 'do not erase demo provenance automatically' in refused.stderr
+    # The current head (010) refuses before reaching the older 009 downgrade.
+    assert refused.returncode!=0 and 'Keep the additive activity column' in refused.stderr
     with sqlite3.connect(path) as connection:
         assert connection.execute('SELECT * FROM users').fetchall()==before
         assert connection.execute('SELECT version_num FROM alembic_version').fetchone()[0]==SCHEMA_REVISION
