@@ -1,5 +1,39 @@
 # Phase 2: release readiness
 
+## Phase 9A: approved authentication guard ordering (2026-11-12)
+
+Verified `security/auth-abuse-protection` and preserved both uncommitted Phase 9 report bodies. The [implementation evidence](AUTH_ABUSE_PROTECTION_PLAN.md#phase-9a-approved-guard-ordering-remediation-2026-11-12) records the minimal change: login/register now validate the existing session and exact Origin/CSRF **before** their unchanged rate-limit accounting. No middleware restructuring or weaker guard. Validly guarded successes/failures/registrations still consume **30/IP and 10/normalized account per 900s**, with unchanged 429 details and session/password/cookie behavior.
+
+**A9-01 is addressed within this scope:** missing/untrusted Origin, missing/invalid/mismatched CSRF and missing/invalid/expired sessions no longer alter budgets, perform password work or mutate users/sessions. Four poisoning regressions cover both routes, same/different attacker IPs, and subsequent target/unrelated-account logins. Malformed JSON/schema stays uncharged 422; protected dependency failures stay uncharged. When both guards and budgets would reject, **403 now intentionally precedes 429**; validly submitted throttled requests still get 429. Bootstrap's existing IP-only accounting is unchanged.
+
+| Phase 9A validation | Actual result |
+| --- | --- |
+| Regression against old implementation | **1 expected failure / 30 deselected**, 3.02s pytest / 4.87s wall; detects charged counters after 403 |
+| Focused guard-order regression | **31 passed**, 7.49s pytest / 9.11s wall |
+| Broader safe backend/offline research | **314 passed / 8 migration-named cases deselected**, 103.31s pytest / 106.18s wall; deployment/provisioning module excluded |
+| Full frontend | **109 passed / 17 files**, 113.44s suite / 116.30s wall |
+| TypeScript / local / synthetic production builds | **Passed**, 8.64s / 7.36s / 6.89s wall |
+| Documentation/integrity | **65 local links / 38 source references**, 137 matching tested source/declaration files; prior reports preserved, exactly four intended paths and clean whitespace diff |
+
+The 31 focused cases overlap the broader backend result. No unexpected failure, timeout, hidden retry or altered threshold. Only new filtered temporary source, synthetic accounts/databases and reused isolated dependencies were used; no installation, existing user data/secret access, migration, provisioning, external request or production activation. Existing deprecation/outDir warnings remain. Browser/Linux/proxy/load/restart-worker checks were not rerun; the backend selection is not the entire CI suite.
+
+**Remaining blockers:** valid-CSRF account targeting, shared NAT/action budgets, process-local/restart/multiworker throttling, registration enumeration, parser/password-work/cardinality bounds and existing recovery/storage/retention/accessibility/research gates remain open. Removing invalid-guard traffic from this handler's IP budget does not bound its parsing/session-lookup work; ingress/resource controls need separate approval. Public/real-health release remains NO-GO. Idle flag stays false by default. Only auth route ordering, a new synthetic regression module and these two reports change; no dependency/schema/production/deployment change, commit, push, PR, merge or deployment.
+
+## Phase 9: authentication abuse audit and design (2026-11-12)
+
+Starting `security/auth-abuse-protection` was clean and identical to local `main` at **`3edd914`**, merged PR #23. The [authentication abuse protection plan](AUTH_ABUSE_PROTECTION_PLAN.md) records current request/accounting order, evidence, safe reproductions, remediation options and acceptance/rollback gates. **Audit/design only; no authentication fix is implemented.**
+
+- **A9-01, Medium:** login/registration charge shared IP/account budgets before Origin/CSRF. Ten sequential guard-rejected synthetic requests blocked the named synthetic owner's valid login from another IP; existing authenticated reads remained available. Recommend a separately approved minimal reorder placing existing guards before `attempts()`. This does not solve targeting with valid anonymous CSRF credentials.
+- **A9-02, Medium:** process-local counters reset across fresh instances/restarts and are not shared across workers. Successful login/registration, failed attempts and password reauthentication share budgets; shared-IP and targeted-account denial remain concerns. Persistent sessions/revocation are separate and unchanged.
+- **A9-03, Low:** writable local new registration is distinguishable from duplicate registration despite generic duplicate wording. Known/unknown wrong-password logins match and both verify a hash; no constant-time claim. Demo registration remains blocked; recovery is not implemented.
+- **A9-04, Medium:** parsing, password-work concurrency and limiter key cardinality lack complete application bounds. No exhaustion/load attack was run. Reviewed launcher explicitly trusts only loopback proxy peers and the nginx template overwrites forwarding headers, qualifying the historical claim that all proxy clients necessarily count as loopback. Actual deployment/topology was not verified.
+
+Validation: **103 existing selected auth/security/revocation/idle cases passed**, one migration case deselected. Initial combined batch: **117 passed / 1 failed / 1 deselected**, 26.29s pytest / 28.38s wall. Failure was a temporary spy patching a read-only library method; corrected only the spy and reran the **15 temporary observations: all passed**, 3.16s / 4.36s. This is **118 unique selected passing cases across those runs**, not a clean full-suite run or proof vulnerabilities are fixed. Restricted temporary source/environment and synthetic databases only; reused isolated Python 3.13.12 dependencies read-only. No network, server, provisioning or migration operation; no existing user/secret/data access. Existing deprecation warning remains.
+
+Documentation/integrity checks passed: **62 local links, 37 source-line references, 65 matching tested backend source/declaration files**, preserved prior release evidence, only two intended documentation paths and clean whitespace diff.
+
+**Release gates remain unchanged:** public/real-health use is NO-GO. Approve and test the ordering fix, then separately decide durable/shared and NAT-safe abuse policy, enrollment privacy, trusted ingress/resource bounds and recovery. Storage/copy protection, retention/restore, human/device accessibility, historical Edge uncertainty, Linux/PostgreSQL/worker evidence and research/clinical gates remain open. Idle enforcement stays disabled by default. No application, lock, migration or deployment-setting changes, commits, pushes, PRs, merges or deployment in this phase; full browser/build suites were not rerun for documentation-only work.
+
 ## Phase 8C: final stabilization and PR-readiness verdict (2026-11-11)
 
 **READY WITH DOCUMENTED LIMITATIONS — disabled-by-default PR review only.** Verified `security/session-idle-timeout` against local `main`/HEAD `7ca2cdd`. All intended Phase 8A/B work is preserved; no runtime/frontend or migration change in this phase. **`SESSION_IDLE_TIMEOUT_ENABLED=false` remains default**, with production/demo opt-in rejected and no existing environment enabled. [Final evidence and activation blockers](SESSION_IDLE_TIMEOUT_PLAN.md#phase-8c-stabilization-and-pr-readiness-verdict-2026-11-11) include the complete changeset review, precise commands and historical failures.
