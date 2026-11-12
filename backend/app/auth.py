@@ -182,7 +182,8 @@ class Authentication:
         @app.post('/api/auth/register', status_code=201)
         def register(data:Registration, request:Request, response:Response, s=Depends(db)):
             if settings.synthetic_demo: raise HTTPException(403, 'Registration is disabled in the synthetic demonstration')
-            attempts(request,data.email); previous=session(request,s); csrf(request,previous)
+            previous=session(request,s); csrf(request,previous)
+            attempts(request,data.email)
             password_hash=hasher.hash(data.password)
             user=User(email=data.email,display_name=data.display_name,password_hash=password_hash,created_at=now().isoformat())
             s.add(user)
@@ -194,7 +195,8 @@ class Authentication:
         def login(data:Credentials, request:Request, response:Response, s=Depends(db)):
             if settings.synthetic_demo and data.email != DEMO_EMAIL:
                 raise HTTPException(401, 'Use the provided synthetic demonstration account')
-            attempts(request,data.email); previous=session(request,s); csrf(request,previous)
+            previous=session(request,s); csrf(request,previous)
+            attempts(request,data.email)
             user=s.query(User).filter_by(email=data.email).first()
             try: valid=hasher.verify(user.password_hash if user else DUMMY_HASH,data.password)
             except (VerificationError,InvalidHashError): valid=False
