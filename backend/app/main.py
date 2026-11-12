@@ -11,7 +11,7 @@ from .security import SecuritySettings, PrivateBoundary
 from .deployment import database_ready, DemoBoundary, operation_event
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from .phone import dialable_phone
-from sqlalchemy import create_engine, event, String, Integer, Text, CheckConstraint, JSON, Boolean, ForeignKey, UniqueConstraint
+from sqlalchemy import create_engine, event, String, Integer, BigInteger, Text, CheckConstraint, JSON, Boolean, ForeignKey, UniqueConstraint
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker, Session
 
@@ -45,6 +45,7 @@ class LoginSession(Base):
     token_digest: Mapped[str] = mapped_column(String(64), unique=True)
     csrf_token: Mapped[str] = mapped_column(String(100))
     expires_at: Mapped[str] = mapped_column(String(40), index=True)
+    last_activity_at_ms: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 class Owned:
     # NULL means preserved, unclaimed pre-authentication records.
     owner_id: Mapped[int | None] = mapped_column(ForeignKey('users.id'), nullable=True, index=True)

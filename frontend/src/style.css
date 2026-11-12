@@ -420,3 +420,11 @@ th, td { text-align: left; padding: 10px; border-bottom: 1px solid var(--border)
 .demo-guide summary{cursor:pointer;padding-block:12px;min-height:44px;box-sizing:border-box}
 .demo-guide-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px}.demo-guide-actions button{min-height:44px}
 @media(max-width:600px){.demo-guide{padding:16px}.demo-guide-actions{display:grid}.demo-guide-actions button{width:100%}}
+
+/* Enabled local idle warning; no animation and no changes to disabled-mode layout. */
+.idle-warning { position: sticky; top: 0; z-index: 70; padding: 16px; max-width: 100%; background: var(--surface); color: var(--text); border: 2px solid var(--primary); overflow-wrap: anywhere; }
+.idle-warning h2 { font-size: 20px; margin: 0 0 8px; }
+.idle-warning p { margin: 8px 0; }
+.idle-warning-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.idle-warning-actions button { min-height: 48px; max-width: 100%; white-space: normal; }
+#idle-warning-slot { display: contents; }

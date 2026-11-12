@@ -1,5 +1,86 @@
 # Phase 2: release readiness
 
+## Phase 8C: final stabilization and PR-readiness verdict (2026-11-11)
+
+**READY WITH DOCUMENTED LIMITATIONS — disabled-by-default PR review only.** Verified `security/session-idle-timeout` against local `main`/HEAD `7ca2cdd`. All intended Phase 8A/B work is preserved; no runtime/frontend or migration change in this phase. **`SESSION_IDLE_TIMEOUT_ENABLED=false` remains default**, with production/demo opt-in rejected and no existing environment enabled. [Final evidence and activation blockers](SESSION_IDLE_TIMEOUT_PLAN.md#phase-8c-stabilization-and-pr-readiness-verdict-2026-11-11) include the complete changeset review, precise commands and historical failures.
+
+| Phase 8C final validation | Exact result |
+| --- | --- |
+| Backend/offline research | **302 passed / 5 provisioning-dependent cases deselected**, 109.91s pytest / 112.81s wall |
+| Full frontend unit suite | **109 passed / 17 files**, 72.85s suite / 74.66s wall |
+| Uninstrumented Chrome/Edge desktop + 320px | **60 passed**, 68.32s wall; retries disabled, original timeouts |
+| Real frontend → fresh temporary backend | **4 passed**, 10.7s suite / 11.79s wall |
+| TypeScript / local / synthetic builds | Passed, **5.55s / 6.15s / 6.95s wall**, using existing locked build steps |
+| Bounded focus diagnostics | **29 passed**: 17 original scenarios + 12 controlled Enter interleavings; separate from normal browser totals |
+| Documentation / integrity | **71 local links / 42 source references**, 136 tested source/configuration files matched; 17 starting source files unchanged; 21 intended paths; whitespace check passed |
+
+**Edge uncertainty remains open:** no reproduction in 29 bounded diagnostics or the final normal suites. Four persisted, value-free traces show expected Edit → select → Cancel → Edit → Delete transitions, no submit events or unexpected navigation. The earlier failure is not declared resolved, and Daily Status behavior/tests were not changed to make it pass. Initial inline trace bodies were not persisted by the list reporter; four additional planned file-backed traces corrected evidence collection, without retry/timeout changes.
+
+New migration regressions cover fresh install and ordered 009→010 upgrade, actual startup/readiness/authentication with enforcement off, and existing synthetic-record preservation. One old deployment-module assertion failed because downgrade now stops at 010 rather than 009; corrected only its expected message, retained preservation checks, and included it in the final passing backend suite. The five deselections invoke provisioning and require separately authorized/CI verification; no such script ran locally. Disabled auth responses have four top-level keys, correcting an earlier documentation count only.
+
+Reviewed all **21 intended paths**, including untracked files, for scope, artifacts and credential-shaped literals. No temporary/data/database/backup artifact or such secret flag in the reviewed changeset; fixture literals are explicitly synthetic. No actual secret/data stores or ignored/Git-history scan. Runtime code, migrations, locks, deployment settings and browser tests are preserved. Phase 8C modifies only two backend test files and these two reports. Existing user databases/records/backups/secrets/environments remain untouched.
+
+**Activation/public release remains blocked:** unresolved historical Edge uncertainty, human AT/timing/keyboard/zoom/contrast and physical-device review, Linux/PostgreSQL/cross-host clocks/parallel workers, schema adoption/cutover/rollback and session invalidation, plus existing storage/recovery/abuse/retention/research gates. No known deterministic code fix remains for disabled PR review; CI/provisioning-specific checks are still required before merge. No activation, commit, push, PR, merge or deployment.
+
+## Phase 8B: frontend idle integration — synthetic verification, not activation (2026-11-11)
+
+Verified `security/session-idle-timeout` and the nine expected uncommitted Phase 8A paths. Preserved the seven backend/migration/test files unchanged and both report bodies. The [Phase 8B evidence](SESSION_IDLE_TIMEOUT_PLAN.md#phase-8b-frontend-integration-and-synthetic-verification-2026-11-11) records the UI/API contract, failures, exact synthetic reproduction and remaining gates. **Backend default stays `SESSION_IDLE_TIMEOUT_ENABLED=false`; no existing environment was enabled.**
+
+Only complete enabled backend metadata activates a five-minute warning. **Stay signed in** deliberately posts the last confirmed activity precondition and updates/dismisses only after a valid acknowledgement; passive activity never renews. Stale tabs can explicitly check status without retrying activity. Idle/absolute expiry, revocation or changed account/session binding clears private UI with a latched sign-in flow; bootstrap/late responses cannot restore it. Unsaved forms persist through a confirmed extension but are discarded on closure, with no draft storage/autosave and honest pending-save wording. Warning controls render inside the diary modal when necessary, remain keyboard reachable, restore focus and wrap at 320px without animation.
+
+| Phase 8B final evidence | Actual result / limitation |
+| --- | --- |
+| Backend/offline-research | **289 passed**, 150.92s pytest / 155.67s wall; six new-target migration cases included, provisioning module excluded |
+| Full frontend | **109 passed / 17 files**, 64.62s suite / 65.39s wall |
+| Intercepted Chrome/Edge, desktop + 320px | **59 passed / 1 failed** of 60. All **44 new idle executions passed**; one existing Edge Daily Status focus case failed once. Original run remains partially failing. |
+| Existing Edge case diagnostic | **1 passed**, 3.8s suite / 4.91s wall, unchanged code/timeouts; intermittent cause unresolved |
+| Real frontend → temporary backend | **4 passed**, 9.6s suite / 10.61s wall; two actual API scenarios in each Chrome/Edge, new fictional accounts/private SQLite and accelerated clock |
+| Local / synthetic production builds | Both TypeScript + Vite passed, **9.99s / 10.90s wall** |
+| Documentation / integrity | **70 local links / 42 source references**, 133 tested source/configuration files matched; seven Phase 8A backend files and previous report bodies preserved; whitespace check passed |
+
+Failures were investigated rather than retried silently: initial browser clocks advanced before bootstrap; a two-tab fixture advanced a shared clock twice; real integration exposed the page consuming its own sign-in BroadcastChannel message. Added ready waits, corrected shared-clock advancement and introduced non-sensitive memory-only sender filtering with regressions. Original and diagnostic failure logs remain. No Playwright retries or timeout increases. Details/counts are in the plan, including the unresolved existing Edge scenario.
+
+All execution used filtered temporary source, reused isolated dependencies, intercepted APIs or a nonce-guarded test wrapper around actual application routes. The wrapper alone enables enforcement in its local child process, accepts no database path, creates a new synthetic schema without provisioning/migration, and cleans its owned data at shutdown. No existing database/account/health/backup/secret/browser-profile access, lock/migration/deployment/OS change, dependency installation or real email/phone action. Seven backend files from Phase 8A remain untouched; 13 frontend/test/report paths are changed in Phase 8B (20 combined worktree paths).
+
+**Rollout gates remain:** backend flag off; existing-data schema 010 adoption/cutover and invalidation require separate review. No additional migration/configuration change is required by this frontend work. Intermittent Edge regression, human AT/keyboard/timing/contrast/zoom, physical devices/sleep-resume, Linux/Safari/Firefox, PostgreSQL/cross-host clocks and operational rollout remain unverified. Storage/recovery/abuse/retention/research gates are unchanged. No public/real-health readiness or clinical claim, commit, push, PR, merge or deployment.
+
+## Phase 8A: approved backend idle foundation — OFF by default (2026-11-11)
+
+Verified `security/session-idle-timeout` at `7ca2cdd`, with only the existing two uncommitted Phase 8 document changes. Preserved both bodies. The [implementation evidence](SESSION_IDLE_TIMEOUT_PLAN.md#phase-8a-approved-backend-foundation-disabled-by-default-2026-11-11) records the approved backend foundation, exact contract, migration/clock/retry semantics, tests and limits. Earlier audit/design statements below are historical.
+
+**`SESSION_IDLE_TIMEOUT_ENABLED=false` by default.** Exact `true` opt-in is restricted by settings validation to local development; production/synthetic-demo opt-in is rejected. No serving configuration was enabled. When opted in, persistent last activity adds a **30-minute idle check** alongside unchanged absolute expiry. Only explicit authenticated Origin/CSRF-protected activity POST advances it, with a server-observed precondition to reject stale retries; reads/bootstrap/ordinary requests never renew it. No frontend code, warning, timer, automatic logout or activity caller changed.
+
+Migration **010** only adds nullable BIGINT `login_sessions.last_activity_at_ms`, without default/backfill/deletion or health changes; readiness expects 010. New code requires that schema even with the behavior flag off. No existing database was accessed/migrated. Off-state legacy NULL sessions retain normal absolute behavior; explicit enabling requires their fresh sign-in. Downgrade follows repository convention and refuses before modifying schema/data; no destructive rollback implemented. Activation/disable-after-activation requires a separate reviewed cutover/invalidation procedure.
+
+| Phase 8A verification | Actual Windows evidence |
+| --- | --- |
+| Final backend/offline-research suite | **289 passed**, 141.26s pytest / 144.43s wall; includes 39 new idle/migration cases and all six migration cases. Deployment/provisioning module excluded. |
+| Focused foundation checks | Corrected run **38 passed**, 65.39s pytest / 69.50s wall; final broader run adds fractional-clock regression |
+| Relevant frontend regressions | **21 passed / 3 files**, 42.95s suite / 47.99s wall |
+| Local / synthetic production builds | TypeScript + Vite passed, **38.51s / 35.56s wall** |
+| Documentation / integrity | **62 local links / 38 source references**, 127 tested source/configuration files matched; both starting document bodies preserved; exactly nine intended changed files; whitespace check passed |
+| Failures / follow-ups | Initial focused run: 34 passed, 2 test-helper failures (multiple-session assumption, unquoted reserved column). Corrected once. First broader run: 288 passed; then aligned response precision with stored milliseconds and added regression, final 289 passed. No timeouts/hidden flaky reruns; existing TestClient and temporary Vite outDir warnings remain. |
+
+Only fresh temporary filtered source, synthetic accounts/databases and copied matching dependencies were used; no install, existing app environment mutation, real data/secret/backup/WAL access, provisioning, deployment or OS change. SQLite tests exercise concurrent threads, independent engines/apps, waiting past expiry/revocation, rollback and fresh-instance persistence; live PostgreSQL/parallel-process/Linux/browser/human/device verification remains unperformed. Synthetic migration tests verify preserved table values/NULL state, readiness, downgrade refusal and idempotent upgrade.
+
+**Not ready to activate:** the frontend still lacks idle warning/latched lock/activity integration; host UTC is test-injectable rather than a shared database clock. Schema rollout, clock/policy transitions, migration/rollback, hosted abuse/operations and Phase 8B accessibility/unsaved-entry handling need separate approval/evidence. S7-01/SP4-03 remains operationally open; recovery/change, storage/copies, restore/retention, manual/research gates remain. Public/real-health release is **NO-GO**. Nine intended files only (backend foundation/migration/tests and these two documents); locks, previous migrations, frontend and production configuration files untouched. No commit, push, PR, merge or deployment.
+
+## Phase 8: session idle timeout audit and design (2026-11-11)
+
+Verified clean `security/session-idle-timeout` at **`7ca2cdd`**, the PR #22 merge, also the local `main` HEAD; both ancestry checks passed. No remote fetch/GitHub-state claim. The new [idle-timeout plan](SESSION_IDLE_TIMEOUT_PLAN.md) maps current absolute expiry, session persistence/CSRF/cookies, PR #22 global revocation and frontend lifecycle, with source/test references and proposed acceptance/rollout/rollback requirements. **Audit/design only: no timeout implemented or migration created/run.** Prior evidence is preserved below.
+
+Current sessions have fixed absolute expiry (**12h default, configurable 1–168h; anonymous 1h**) and no persistent activity state or idle renewal. Proposal: retain that ceiling, add one nullable persistent server activity timestamp, use a **30-minute idle interval / five-minute accessible warning**, and count only deliberate foreground activity through a narrowly CSRF-protected operation. These timings are proposals, not policy. Automatic API traffic/bootstrap/polling must not renew sessions. Existing authenticated rows would require sign-in rather than activity backfill; cross-instance locking/clock, frontend latched privacy lock, unsaved-entry disposal and schema/rollback approval are required. Reverting to old code without invalidating sessions could restore access to idle-expired rows.
+
+| Phase 8 validation | Actual Windows evidence |
+| --- | --- |
+| Existing backend auth/security/global revocation | **65 passed, 1 migration case deselected**, 13.56s pytest / 15.03s wall |
+| Temporary current-behavior observations | **2 passed**, 1.36s pytest / 2.28s wall; no activity column, no deadline/cookie renewal, +11h accepted and +13h denied with 12h absolute TTL |
+| Relevant frontend unit tests | **21 passed / 3 files**, 10.62s suite / 12.06s wall |
+| Documentation / integrity | **54 local links / 34 source references**, 123 tested source/configuration files matched, prior reports preserved; only the two intended documents changed; whitespace check passed |
+| Failures / limitations | No test failures/retries; existing TestClient deprecation warning. No new browser/human/device, Linux, build, real parallel-worker/PostgreSQL, migration/provisioning or deployment result. Proposed idle behavior is not tested or implemented. |
+
+New filtered temporary source, synthetic fixtures and fresh temporary databases only; existing isolated dependencies reused read-only, no installs or existing data/secret access. Detailed commands, caps and evidence are in the plan. Only `docs/SESSION_IDLE_TIMEOUT_PLAN.md` and this report change. **Release blockers unchanged:** idle timeout remains S7-01/SP4-03 Medium/open; Phase 7 revoke-all remains implemented. Recovery/change, storage/copies, abuse/hosting, restore/retention, human accessibility/device and research gates remain; public/real-health release is **NO-GO**. Request separate approval for the bounded schema/backend/test implementation slice before proceeding, with no rollout until frontend protections are verified. No commit, push, PR, merge or deployment.
+
 ## Phase 7: approved Sign out all sessions implementation (2026-11-11)
 
 Verified `security/session-recovery` at `4b3a45f` and preserved the only starting changes: the two uncommitted Phase 7 documents. The [approved implementation follow-up](SESSION_SECURITY_PLAN.md#approved-follow-up-password-reauthenticated-sign-out-all-sessions-2026-11-11) supersedes only the earlier S7-02 implementation-pending status; the original audit snapshots below remain intact.
