@@ -1,5 +1,132 @@
 # Phase 2: release readiness
 
+## Phase 9G: PostgreSQL-ready design proposal (2026-11-15)
+
+Verified `security/shared-auth-throttling`; preserved all prior reports and isolated SQLite/legacy work. [PG-ADR-01 and detailed acceptance/recovery contract](SHARED_AUTH_THROTTLING_PLAN.md#phase-9g-postgresql-ready-transactional-design--proposed-not-implemented-2026-11-15) remain **PROPOSED, not implemented or PostgreSQL-validated**. Phase 9F's application-integration deferral stands; no PostgreSQL/service installation or live limiter change.
+
+Proposed reservation: primary-only READ COMMITTED transaction; applicable session binding first, singleton control `FOR UPDATE`, existing IP/account rows in fixed order; sample primary DB time after waits; inspect exact rolling **30/IP, 10/account over 900000ms**; insert only real first admissions and commit both budgets/count/time together or neither. Control lock serializes missing-key creation/final slots and is an explicit throughput bottleneck. No empty placeholders, skipped contended keys, replica reads or count-then-write outside locks. Password/session/health writes remain outside reservation; actual Phase 9A guards and their current expiry clock remain unchanged.
+
+Keep exact rolling boundaries, not fixed buckets. Atomic all-or-nothing differs from live partial-IP accounting and needs live-policy approval. Successful/bad/duplicate valid submissions still charge shared namespaces; valid-session bootstrap/current logout/read paths stay outside new accounting. Independent bounded primary cleanup, cap/shape checks, server-normalized pseudonymous keys and approved retention/grants are required; NAT, valid-CSRF targeting and registration enumeration remain unresolved.
+
+**Time/recovery is an explicit approval blocker:** primary `clock_timestamp()` is wall time, not independent elapsed proof. Backward samples quarantine without charge; forward movement requires an approved trust contract and can expire budgets early. Restart/failover/restore require verified writer identity/freshness, old-primary fencing, generation gates and authoritative budgets or conservative full-window quarantine measured with trustworthy elapsed continuity. A writable server/startup timestamp/checksum alone is insufficient. No guessed skew threshold, automatic reset or owner-key recovery was implemented.
+
+Recommended failure policy: generic 429/`Retry-After: 900` for known limits, proposed generic fail-closed 503 for uncertain storage/time/primary/capacity; zero automatic reservation retries or memory fallback. Proposed strict `AUTH_SHARED_THROTTLING_ENABLED=false`, additive next-head schema and pool/timeouts are designs only. Off preserves current memory semantics; rollout/rollback must coordinate cohorts/schema and never claim retained shared protection after memory fallback. Primary/failover/RPO/integrity/key policies, performance and operator ownership need approval/evidence.
+
+| Actual Phase 9G checks | Result |
+| --- | --- |
+| Existing unchanged SQLite authority suite | **32 passed**, 67.459s suite / 69.21s wall |
+| Existing Phase 9A guard regressions | **31 passed**, 21.80s pytest / 27.28s wall |
+| Documentation/integrity | **84 local links / 34 source references, 71 unchanged tested files**; previous reports/prototype preserved; only two Phase 9G documents changed; zero owned stores remain; app/migrations/locks/configuration unchanged; whitespace passed |
+
+No failures/retries; existing deprecation warning. New temporary synthetic SQLite fixtures and filtered source only, with read-only isolated dependency reuse. These results **do not prove PostgreSQL transactions, clocks, recovery or performance**. No PostgreSQL SQL/harness/connection/provisioning, new model/limiter/migration, full backend/frontend/browser/build/Linux/failover/restore test or external infrastructure. Prior replay/stop/latency findings remain unchanged.
+
+**NOT READY for application implementation/activation.** Smallest next approval: isolated SQL-specification/statement-shape and injected-time reference-model tests, with no application integration or server installation. Real PostgreSQL acceptance still needs a later separately authorized disposable target. Existing health-data/privacy/storage/recovery/accessibility/clinical/research blockers and default-off idle setting remain. Only this report and the shared-throttle plan change; no existing data/secrets, auth/prototype/configuration/dependency/migration edit, commit, push, PR, merge or deployment.
+
+## Phase 9F: architecture and operational feasibility (2026-11-15)
+
+Verified `security/shared-auth-throttling`; preserved all Phase 9B–9E reports, prototype and archives. [Full architecture matrix, recovery proposals and acceptance gates](SHARED_AUTH_THROTTLING_PLAN.md#phase-9f-architecture-and-operational-feasibility-review-2026-11-15) document an independent audit. **Only these two reports change; no code, recovery, architecture, migration, dependency or configuration implementation.** Completed Phase 9F checks were retained after interruption, not rerun for new passing results.
+
+**Recommendation (c): defer application integration until a PostgreSQL-ready transactional/recovery design is approved.** Keep the monotonic owner as an isolated experiment; do not provision PostgreSQL for the local demo. A's committed claim/epoch/seal correctly prevents competing owners and post-fence stale admissions under reliable same-file local locking and trusted-host assumptions, but owner loss is terminal and operational recovery is absent. B (direct SQLite + approved wall-time policy) could simplify local operation only after explicitly accepting/testing different clock/restart guarantees. Neither is a silent replacement or live opt-in now.
+
+New bounded observations: an authenticated **request/guard transcript can be replayed within the same active epoch** (distinct from replay-resistant replies to fresh client nonces); normal authenticated **stop acknowledgement is not fencing**, so in-flight work can still commit. A busy fence correctly reports failure; only a later committed seal blocks old work. These do not demonstrate a password or committed-fence bypass. Replay needs access to a valid local transcript; full-host/key compromise protection is not claimed. Parent-death/orphan lifecycle, filesystem replacement, suspend/reboot/power loss and old signed-snapshot freshness remain separate gaps.
+
+| Phase 9F validation | Exact result |
+| --- | --- |
+| 32 unchanged prototype cases + four temporary observations | **36 passed**, 54.200s suite / 55.81s wall |
+| Existing Phase 9A guard regressions | **31 passed**, 21.77s pytest / 26.24s wall |
+| Sequential timing smoke, six samples at each starting size | 0 windows: **median 50.346ms / max 67.365ms**; 1000 prefilled windows: **median 148.830ms / max 160.313ms** |
+| Documentation/integrity | **79 local links / 32 source references, 71 unchanged tested files**; prior reports/prototype preserved; only two Phase 9F document edits; zero owned store directories remain; application/migrations/locks/configuration unchanged; whitespace passed |
+
+No test failures/retries; existing deprecation warning. Timing is a twelve-request local diagnostic, not a p95/p99/capacity benchmark or production load result. State/schema authentication detects tested accidental logical corruption but neither proves newest-snapshot freshness nor provides recovery after memory-key loss. Successful reservations perform six bounded full snapshot reads plus IPC/guard work under serialized SQLite transactions; performance/cadence gates remain open.
+
+Recovery proposal only: drain/fence old admission authorities and prove quiescence; either perform a verified live handoff preserving remaining budgets conservatively, or keep **all affected new admissions closed for a full trusted 900-second window after the last possible old admission** before an explicitly approved new generation. Lost quarantine-clock continuity restarts quarantine. No ACTIVE→NEW reset, guessed UTC ageing, old health/session snapshot restore or actual recovery operation. A durable generation gate, operator ownership and interrupted-recovery tests are prerequisites absent today.
+
+The policy is **sliding**, not fixed/tumbling, at 30/IP and 10/account over 900 seconds. Live account rejection still charges IP; prototype is all-or-nothing. Fail-closed generic HTTP 503 and a strict `AUTH_SHARED_THROTTLING_ENABLED=false` flag remain proposals, not current routes/settings. Any approved additive migration/flag sequence must keep exact feature-off behavior, Phase 9A guards, schema readiness, cookie/session/global-logout/account isolation and coordinated rollback; no mixed workers or reset allowance silently presented as continuous protection.
+
+**NOT READY for application integration/public or real-health release.** Next approval should cover only a synthetic recovery/admission-generation/primary-time contract and tests. Windows/Linux, restart/fencing/replay/recovery, 10000-row performance/capacity/retention, actual synthetic frontend→temporary backend, and PostgreSQL locking/time/failover evidence are future gates. No full backend/frontend/browser/build, Linux, live DB service, physical suspend/reboot/power-loss or destructive restore tests were run. No existing data/health/account/backup/secret access, external attack, provisioning, commit, push, PR, merge or deployment. Existing storage/recovery/privacy/accessibility/research blockers and idle-default-off behavior remain unchanged.
+
+## Phase 9E: approved monotonic authority hardening (2026-11-12)
+
+Verified `security/shared-auth-throttling` and preserved prior reports, original UTC adapter/tests (now explicitly archived) and all three original red regression tests in temporary evidence. [Current implementation and proof/evidence](SHARED_AUTH_THROTTLING_PLAN.md#phase-9e-approved-monotonic-owner-authority-and-hardening-2026-11-12) supersede the earlier clock-approval stop below. **Synthetic-only; no application integration.**
+
+One owned process supplies monotonic elapsed time, independent of worker/host wall clocks. Exclusive lifetime SQLite ownership lock plus irreversible claim and in-transaction epoch/state verification prevent competing owners or takeover after authority loss. A committed seal fences a still-running stale owner/client. In-flight work linearizes before the seal or fails afterward. Authenticated bounded local loopback IPC binds fresh nonces/ordered frames/epochs, so a stale/reused endpoint cannot falsely confirm authority. Owner loss/restart/reboot fails closed; only worker restart with the same surviving authority preserves continuity. No UTC rebase or arbitrary skew threshold.
+
+Independent bounded expiry maintenance now commits even when admission is denied. 30/IP, 10/account, 900-second all-or-nothing accounting remains. State/control/counts/schema are reconciled and authenticated with a separate ephemeral owner key; missing active state, valid-range drift and corruption fail closed. No active eviction, untrusted-state cleanup or process-local fallback. Keys remain memory-only; no credentials/tokens/health data are prototype inputs or stored/logged.
+
+| Validation | Exact outcome |
+| --- | --- |
+| Ownership/fencing feasibility | **6 passed**, 4.914s suite / 5.30s wall |
+| Initial hardened suite | **31 passed**, 24.518s / 25.08s |
+| Final hardened suite | **32 passed**, 24.256s / 24.65s; earlier ownership cases included |
+| Relevant backend | **134 passed / 1 migration case deselected**, 33.20s pytest / 35.28s wall; all 31 Phase 9A guard cases |
+| Documentation/integrity | **69 local links / 24 source references, 71 matching tested files**; previous work/three red tests preserved; eight intended files; zero owned store directories left; app/migrations/locks/configuration unchanged; whitespace passed |
+
+No executed test failure/timeout or hidden rerun. The final rerun follows an added schema-integrity check/test; counts overlap. Existing deprecation warning remains. All data came from newly generated synthetic stores under a restricted temporary environment. No actual database/account/health/backup/secret access, migration, dependency/configuration/OS change, external service, commit/push/PR/merge/deploy. Loopback IPC is owned test infrastructure, not a public service.
+
+**READY FOR SEPARATE INTEGRATION-DESIGN REVIEW only.** No live shared limiter or HTTP integration. Owner crash is terminal for that store; clean takeover/recovery is intentionally absent. Trusted local OS/SQLite and cooperating capability holders are assumptions, not hostile-host protection. Full-state integrity scans/IPC contention, platform suspend/Linux/PostgreSQL, crash/power-loss durability, actual reboot and production performance remain unvalidated. Existing public/real-health, NAT/targeting/enrollment/recovery/storage/retention/accessibility/research blockers persist. Idle flag stays false. Application integration/migrations/hosting require separate approval.
+
+## Phase 9E: synthetic hardening stopped at clock-policy gate (2026-11-12)
+
+Verified `security/shared-auth-throttling`, preserved existing reports/prototype and [reproduced all three Phase 9D gaps](SHARED_AUTH_THROTTLING_PLAN.md#phase-9e-reproductions-complete-clock-policy-approval-required-2026-11-12) in new temporary synthetic stores. **No adapter hardening implemented:** the user explicitly requires stopping when a safe clock policy needs an unresolved threshold/persistent clock design. UTC high-water alone cannot distinguish genuine downtime from a forward jump after restart; SQLite wall-clock expressions do not solve it. The proposed prior 2000ms tolerance remains unapproved.
+
+Results: **3 expected failing temporary hardening regressions**, 0.260s suite / 0.56s wall; unchanged prototype **24 passed**, 3.021s / 3.25s; existing backend selection **134 passed / 1 migration case deselected**, 27.15s pytest / 28.88s wall, including all 31 Phase 9A guard cases. No executed test timeout, hidden rerun or weakened assertion. Failures remain unfixed; existing passes are not hardening sign-off. Existing deprecation warning remains.
+
+Documentation/integrity passed: **62 local links / 24 source references, 68 unchanged tested source/declaration files**, preserved prior documentation bodies, three documentation-only Phase 9E changes and clean whitespace diff.
+
+Recommend explicit approval of a **synthetic store-owner monotonic authority/epoch design**, with worker restart persistence only while that authority survives and fail-closed authority loss. Alternative UTC/tolerance/quarantine policy needs approved assumptions and residual restart risk. Neither is implemented. No arbitrary threshold, clock reset, external time service or infrastructure was chosen. Cleanup/count fixes are also pending; trusted expiry must precede independent cleanup.
+
+**NOT READY for hardening/integration sign-off.** Three gaps remain; clock policy approval is the next step. Phase 9E changes only this report, the shared-throttle plan and prototype README. Adapter/tests, live authentication, all-or-nothing prototype accounting, migrations, dependencies, flags and settings are unchanged. Temporary red tests remain outside Git. No existing user database/account/health/backup/secret access, OS clock change, migration, external request, deployment, commit, push, PR or merge. Full frontend/browser/build/Linux/PostgreSQL/integration checks were not run. Existing release blockers remain.
+
+## Phase 9D: shared-throttle integration policy review (2026-11-12)
+
+Verified `security/shared-auth-throttling` and preserved all uncommitted Phase 9B/9C reports/prototype files. [Decision matrix, proposed interface and rollout gates](SHARED_AUTH_THROTTLING_PLAN.md#phase-9d-integration-design-and-policy-review-2026-11-12) compare live and synthetic behavior. **Design only: no route integration, flag, migration, adapter/test/README or production/dependency change.**
+
+Recommended policies, **not activated**:
+
+- Explicitly approve all-or-nothing IP/account charging for a future enabled backend, preserving **30/IP, 10/account, 900 seconds**, shared auth actions and existing generic 429/`Retry-After: 900`. Disabled mode must keep today's partial-IP semantics. This reduces shared-IP collateral denial but leaves uncharged rejected traffic and valid-CSRF targeting; ingress/NAT policy remains a gate.
+- Single-host SQLite: injectable UTC-ms sampled after write reservation, exact cutoff and high-water; add reviewed clock-anomaly detection/quarantine. SQLite clock expressions do not create an independent trusted time source. Large forward jumps, restarts and suspend/resume require explicit tests/operational policy.
+- Preserve active keys/caps; independently committed bounded maintenance is necessary because rejected reservations roll back cleanup. Validate stored row-count consistency at startup/allocation/maintenance; count drift was reproduced only by deliberate modification of a new synthetic store.
+- Enabled-store failure must fail closed with generic 503, bounded lock waits and no memory fallback/false success. Existing valid-session reads/current logout must not gain an extra throttle dependency. Preserve actual Phase 9A guards and recheck authoritative sessions after waits; the toy callback is not sufficient.
+- A future strict **`AUTH_SHARED_THROTTLING_ENABLED=false`** flag and additive migration require separate approval. Off would preserve live behavior, not necessarily avoid the new exact-head schema requirement. No mixed workers, double charging or silent rollout reset. PostgreSQL needs a separate adapter/primary-clock/lock/failure validation path.
+
+Actual checks: **29 passed** (24 unchanged prototype tests + five temporary observations), 3.851s suite / 4.32s wall; **31 existing guard regressions passed**, 6.70s pytest / 8.49s wall. No failures/retries; existing deprecation warning. Observations confirm current forward-clock, denial-cleanup and count-drift limitations, not fixes. Filtered temporary source/new synthetic stores only; no existing data, secrets, external request, migration, provisioning or live service.
+
+Documentation/integrity passed: **60 local links / 24 source references, 69 unchanged tested source/declaration files**, both prior report bodies and all three prototype files preserved, only two Phase 9D documentation edits, unchanged auth/migrations/locks/configuration and clean whitespace diff.
+
+**NOT READY for live integration:** approve a synthetic-only hardening increment for count consistency, independently committed maintenance and clock policy/tests first. All policy thresholds, schema/flag readiness/cutover/rollback and application transaction handoff need explicit approval and acceptance evidence. Full backend/frontend/browser/build/Linux/PostgreSQL/load checks were not rerun. Public/real-health release blockers, storage/recovery/privacy/accessibility/hosted/research gates and disabled idle setting remain unchanged. No commit, push, PR, merge or deployment.
+
+## Phase 9C: synthetic SQLite throttle experiment (2026-11-12)
+
+Verified `security/shared-auth-throttling`, preserved uncommitted Phase 9B reports and kept application auth/guards untouched. Added a separate [standard-library prototype and README](../prototypes/synthetic_auth_throttle/README.md); [exact evidence and deviations](SHARED_AUTH_THROTTLING_PLAN.md#phase-9c-approved-synthetic-sqlite-prototype-2026-11-12) describe its dedicated temporary schema and synthetic-only handle/input restrictions. **Not connected to login/register; no application migration or live shared limiter.**
+
+`BEGIN IMMEDIATE` on independent SQLite connections serializes checks/writes. Both keys commit only when **30/IP and 10/normalized account per 900 seconds** allow; login/register share keys. **Approved prototype deviation:** either-limit rejection changes neither budget, unlike current live account rejection, which charges IP. Adoption therefore needs explicit policy/integration approval. A toy guard callback runs before storage and after lock acquisition; actual Origin/CSRF/session validation remains in the unchanged app.
+
+| Phase 9C validation | Actual result |
+| --- | --- |
+| New prototype | **24 passed**, 5.426s suite / 6.11s wall |
+| Relevant existing backend regressions | **134 passed / 1 migration case deselected**, 42.00s pytest / 44.49s wall; all 31 Phase 9A cases included |
+| Process contention | Final IP and account slots: **one admission / three denials** per four-process race; later fresh processes retain exhaustion; independent-connection writer lock verified |
+| Failure/cleanup | Actual BUSY, injected LOCKED, partial-write/precommit rollback, corrupt/missing storage and capacity fail closed; bounded expiry cleanup preserves active counters |
+| Documentation/integrity | **52 local links / 21 source references, 68 matching tested files**; both Phase 9B report bodies preserved; five intended files only; app/migrations/locks/configuration unchanged; whitespace passed |
+
+New temporary stores only; no existing database, account/health record, backup/export, secret or private configuration access. Prototype uses no new dependencies. An earlier validation launch never started because automatic approval review timed out; one permitted launch retry completed, with no executed test failure/timeout/retry. Existing deprecation warning remains. No live proxy/Linux/PostgreSQL/frontend/browser/build/load/power-loss checks or general production-readiness claim.
+
+Caps and clock limitations are documented: 10000 retained key rows, 30/10 events per row, bounded 100-row cleanup, 250ms default busy timeout, UTC high-water clamp but no large-clock-jump detector/scheduler. Hashes are guessable pseudonyms, not anonymity/encryption. SQLite writer contention and PostgreSQL portability remain unresolved beyond this synthetic evidence. **Release blockers unchanged:** live shared auth remains unimplemented; accounting policy, valid-CSRF targeting/NAT, enrollment, ingress/resource limits, recovery/storage/retention/manual-accessibility/hosted/research gates remain open. Idle flag remains false by default. No application/production/dependency/migration change, commit, push, PR, merge or deployment.
+
+## Phase 9B: shared authentication throttling audit/design (2026-11-12)
+
+Verified clean `security/shared-auth-throttling` identical to local `main` at **`c32cb28`**, merged PR #24, with Phase 9A's guard-before-accounting fix intact. The [shared authentication throttling plan](SHARED_AUTH_THROTTLING_PLAN.md) compares SQLite, PostgreSQL and Redis; specifies transaction/clock/capacity/failure semantics; and defines synthetic acceptance, migration, rollout and rollback gates. **Audit/design only: no shared storage, schema, application, setting or dependency change.**
+
+Current budgets remain **30/IP and 10/normalized account per 900 seconds**, shared across login/register and existing password reauthentication; successes/failures charge, Origin/CSRF/session rejection does not. Counters are process-local. One instance safely admits only one remaining slot under contention, but independent instances/restarts have independent allowances. Shared-NAT blocking, valid-CSRF account targeting, registration enumeration and cardinality/resource bounds remain unresolved; making state durable does not solve them.
+
+Recommendation: separately approve dedicated additive throttle tables and an exact sliding-window reservation using **existing local SQLite infrastructure**, `BEGIN IMMEDIATE`, short committed reservations and no password work while locked. No existing throttle table exists to reuse. Preserve current partial IP/account accounting and guards; design explicit fail-closed generic 503, clock, bounded cleanup/capacity and independent auth-transaction behavior. Same-file SQLite is for one local host, not network filesystems or a general multi-host hosting solution. Future PostgreSQL requires its own row-lock/time/conflict/failure tests; Redis adds unapproved service/dependency/operational work.
+
+Actual checks: **140 passed / 1 migration case deselected**, 44.81s pytest / 47.19s wall, including **134 existing cases** (all 31 Phase 9A regressions) and **6 temporary observations**. No failures/retries; existing deprecation warning. Only filtered temporary source, synthetic fixture databases and read-only reuse of isolated Python 3.13.12 dependencies. No external request, migration, provisioning, Redis, existing-data/secret access or load attack. No shared-counter candidate was implemented/tested; hosted/store/concurrency guarantees are future acceptance criteria. Full frontend/browser/build/Linux/PostgreSQL suites were not rerun for this documentation-only phase.
+
+Documentation/integrity passed: **47 local links / 21 source references, 66 unchanged tested backend source/declaration files**, preserved prior release evidence and Phase 9A guards, two intended documentation paths only, and clean whitespace diff.
+
+**Release blockers unchanged:** durable/shared abuse protection, valid-CSRF/NAT policy and enrollment privacy, trusted ingress/resource controls, recovery, storage/copy protection, retention/restore, manual accessibility/device and historical Edge uncertainty, hosted operations and research/clinical gates remain open. Public/real-health release is NO-GO. Idle enforcement remains false by default. Only this report and the new plan change; no commit, push, PR, merge or deployment. Implementation/migration approval is required before proceeding.
+
 ## Phase 9A: approved authentication guard ordering (2026-11-12)
 
 Verified `security/auth-abuse-protection` and preserved both uncommitted Phase 9 report bodies. The [implementation evidence](AUTH_ABUSE_PROTECTION_PLAN.md#phase-9a-approved-guard-ordering-remediation-2026-11-12) records the minimal change: login/register now validate the existing session and exact Origin/CSRF **before** their unchanged rate-limit accounting. No middleware restructuring or weaker guard. Validly guarded successes/failures/registrations still consume **30/IP and 10/normalized account per 900s**, with unchanged 429 details and session/password/cookie behavior.
