@@ -1,0 +1,2 @@
+# Include only this reviewed synthetic SQL source; keep repository dump exclusions.
+!schema.sql
