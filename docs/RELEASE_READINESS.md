@@ -1,5 +1,62 @@
 # Phase 2: release readiness
 
+## Phase 9I-D: non-owner design only (2026-11-18)
+
+An [unapplied non-owner design](../prototypes/synthetic_pg_transaction_harness/NON_OWNER_DESIGN.md) specifies separate bootstrap, fixture and teardown authorities, fresh pre-created per-test databases, scoped fixture grants and an independently verified teardown contract. The fixture owns no database or object and has no TRUNCATE or CREATE grant. The proposed controller and bootstrap do not exist; current code is incompatible and **execution remains blocked**. Assertions alone are not evidence of disposable identity or freshness. Offline tests: **29 harness checks passed**, **36 model checks passed**; `git diff --check` passed with a line-ending warning. No SQL, connection, provisioning, installation, container or teardown occurred. The Phase 9I-C gates remain open.
+
+## Phase 9I-C: harness safety hold (2026-11-18)
+
+PostgreSQL execution is blocked in source: the existing test role owns its database, so the required non-owner privilege separation is not met. The contention test's unobserved-blocking path now requests rollback; offline checks reject incomplete lifecycle evidence, and a versioned container/volume runbook states the remaining isolation and teardown gates. The evidence validator does not independently verify resources, and complete preflight, safe fixture reset, non-owner bootstrap and enforceable teardown remain unfinished. **Not ready for a disposable-container execution review.** See the [detailed record](SHARED_AUTH_THROTTLING_PLAN.md#phase-9i-c-harness-hardening-and-execution-hold-2026-11-18).
+
+Static harness checks **26 passed**, pure model checks **36 passed**; no database-dependent regression was run. No PostgreSQL connection or SQL execution, provisioning, Docker, installation or teardown occurred. The Phase 9I-B block remains in effect until the outstanding controls are implemented and independently reviewed, followed by separate approval for any execution and teardown.
+
+## Phase 9I-B: disposable harness preflight — blocked (2026-11-18)
+
+Read-only review of all six harness files and the 17 unexecuted database cases found unresolved isolation and teardown concerns. **Do not execute the current harness, including on a separately verified disposable target, until those concerns are resolved, reviewed and separately approved.** The manual teardown instructions do not require or enforce ownership, generation, writer, time and freshness checks together; the maintenance SQL gate is not teardown. Fixture setup also truncates synthetic windows and resets control directly. The target checks do not prove a whole instance disposable or rule out inherited privileges and all unexpected objects. See the [detailed preflight](SHARED_AUTH_THROTTLING_PLAN.md#phase-9i-b-read-only-disposable-harness-preflight-2026-11-18) for lifecycle operations, interruption/rollback limitations and required gates.
+
+Static-only harness checks: **23 passed**. No PostgreSQL connection, SQL execution, database test, setup, container, installation or teardown occurred. The driver pin is present in existing locks but native driver and server compatibility are untested. Resolve the fail-closed lifecycle and target/privilege verification, review test cleanup, document a safe isolated environment, and obtain separate explicit approval before any Stage B execution or teardown. Prior Phase 9I-A records remain historical rather than an execution authorization.
+
+## Phase 9I-A follow-up: maintenance trust gate (2026-11-18)
+
+Reviewed the existing uncommitted disposable harness on `security/shared-auth-throttling`. Cleanup now requires matching generation/writer and affirmative time/freshness assertions before deletion, and quarantines on missing or mismatched evidence. A new dormant case brings the prepared PostgreSQL suite to **17 tests, none executed** in this follow-up. The checks are injected evidence, not a clock or stale-snapshot detector. Harness static checks **23 passed**; the preserved pure model suite **36 passed**. No database connection, SQL execution, provisioning, installation, container or teardown occurred. The separate Stage B approval and isolation gates below remain open; SQL and concurrency have not been validated by PostgreSQL.
+
+## Phase 9I-A: PostgreSQL harness preparation only (2026-11-15)
+
+Verified `security/shared-auth-throttling` at `01eae2a`; preserved prior uncommitted Phase 9H documentation/model and Phase 9B–9G prototypes. Added the isolated [synthetic harness and safe-run instructions](../prototypes/synthetic_pg_transaction_harness/README.md). [Detailed design and evidence](SHARED_AUTH_THROTTLING_PLAN.md#phase-9i-a-disposable-postgresql-harness-prepared-not-executed-2026-11-15) cover the guarded runner, unapplied executable SQL, 16 dormant transaction cases and static checks.
+
+| Validation | Actual result |
+| --- | --- |
+| Harness safety/static tests, final | **23 passed**, zero failures/skips; 0.021s suite / 0.32s wall |
+| Existing pure reference-model suite | **36 passed**, zero failures/skips; 0.090s / 0.28s |
+| PostgreSQL tests | **16 prepared, not executed**; no SQL parsed/applied by a server |
+| Documentation/source integrity | 99 local links valid; 10 prior prototype files byte-identical; new Python AST checks and diff whitespace passed; task runtime directory empty |
+| Backend/SQLite/browser/build checks | Not run in Stage A; database checks would exceed approval |
+
+Initial 22-test static run passed; final run adds a no-driver/application-import assertion and follows cleanup-error sanitization. No failures/timeouts/hidden retries. No database driver loaded, connection, package installation, target manifest, container, provisioning, setup or teardown. Prior reports and prototypes remain preserved; no application/migration/lock/configuration changes.
+
+The future opt-in runner accepts no arbitrary DSN or application environment, requires a nonce-derived disposable target, explicit approval/acknowledgement, unprivileged ownership, writable primary and owned synthetic marker before writes. These checks do not independently prove a cluster is disposable. Prepared SQL uses rolling 900 seconds, 30/IP and 10/account shared login/register budgets, all-or-nothing admission and ordered locks under a global control gate. That gate serializes reservations; actual SQL syntax, concurrency, driver compatibility and performance remain unverified. Synthetic clock/freshness assertions are not real detectors or safe recovery guarantees.
+
+**Stage A preparation complete; Stage B requires separate approval** for a newly disposable PostgreSQL instance, verified identity, reviewed preinstalled driver/version, marker setup, connection/SQL execution and teardown. No live integration or release-readiness claim. Clock continuity, snapshot/failover recovery, PostgreSQL/platform evidence, operational policy and all existing security/privacy, accessibility and clinical/research release gates remain unchanged. No commits, pushes, PRs, merges or deployment.
+
+## Phase 9H: synthetic policy model and SQL-shape checks (2026-11-15)
+
+Verified clean `security/shared-auth-throttling` at `01eae2a`, preserving all committed Phase 9B–9G work. Added an independent [standard-library in-memory model and README](../prototypes/synthetic_pg_throttle_model/README.md), [deterministic tests](../prototypes/synthetic_pg_throttle_model/test_model.py) and [non-executable SQL-shape artifact](../prototypes/synthetic_pg_throttle_model/SQL_SHAPE.md). [Detailed evidence/limitations](SHARED_AUTH_THROTTLING_PLAN.md#phase-9h-synthetic-reference-model-and-sql-shape-validation-2026-11-15) make clear: **no PostgreSQL server, connection, SQL execution, migration or application limiter.**
+
+Model: exact rolling 900000ms, 30/IP and 10/normalized account, login/register shared keys and atomic all-or-nothing charging. Denials create no key/charge; high-water metadata may advance. Copied-state commits/aborts model rollback, unknown commit, independent bounded cleanup and capacity. All 24 serial orders of four same-time IP/account final-slot contenders are examined **under an assumed global control lock**, not real concurrency. Guard booleans/lock traces do not implement actual CSRF/auth or PostgreSQL READ COMMITTED.
+
+Injected backward/known-untrusted time, changed writer/generation and known stale snapshots quarantine without reset. Tests deliberately show that trusted forward jumps still age quotas and falsely trusted old same-generation state can pass. No automatic freshness detector, recovery threshold, global-quarantine proof on commit failure or live policy change is claimed. SQL token/order tests validate documentation shape only; placeholders and PostgreSQL constraints/isolation remain unverified.
+
+| Phase 9H validation | Exact result |
+| --- | --- |
+| Initial model/SQL-text run | **32 passed**, 0.103s suite / 0.34s wall |
+| Final expanded run | **36 passed (33 model + 3 SQL-text checks)**, 0.130s / 0.34s; overlaps initial run |
+| Existing Phase 9A guards | **31 passed**, 5.43s pytest / 6.83s wall |
+| Documentation/integrity | **92 local links / 34 source references, 69 matching tested files**; six prior SQLite-prototype files unchanged; report bodies preserved; six intended changes only; no new integration imports; app/migrations/locks/configuration unchanged; whitespace passed |
+
+Zero failures/selected skips/timeouts/hidden retries; existing deprecation warning. Final run follows four added invariant/time cases; no backend rerun was needed. Only new filtered temporary synthetic fixtures/read-only dependency reuse. Old SQLite authority/archives/authentication/migrations/requirements/configuration are unchanged. No model timing is a database benchmark; global control-lock contention still requires actual measurement.
+
+**NOT READY for application integration or PostgreSQL correctness claims.** Next separate approval: disposable PostgreSQL parser/constraint/two-connection transaction harness with synthetic data only; no existing DB, installation/provisioning, real migration or activation is authorized by this result. Clock/primary/recovery/freshness, row-lock/creation/deadlock/pool/guard semantics, live accounting/NAT/enrollment, performance and existing privacy/storage/accessibility/research/clinical gates remain open. No full backend/frontend/browser/build/Linux/PostgreSQL test was run. No existing user data/secrets, live auth changes, dependency/lock/configuration edits, external infrastructure, commit, push, PR, merge or deployment.
+
 ## Phase 9G: PostgreSQL-ready design proposal (2026-11-15)
 
 Verified `security/shared-auth-throttling`; preserved all prior reports and isolated SQLite/legacy work. [PG-ADR-01 and detailed acceptance/recovery contract](SHARED_AUTH_THROTTLING_PLAN.md#phase-9g-postgresql-ready-transactional-design--proposed-not-implemented-2026-11-15) remain **PROPOSED, not implemented or PostgreSQL-validated**. Phase 9F's application-integration deferral stands; no PostgreSQL/service installation or live limiter change.
