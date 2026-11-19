@@ -1,5 +1,51 @@
 # Disposable PostgreSQL transaction harness — Stage A preparation
 
+## Phase 9I-I: partial SQL transition only
+
+The SQL guard now expects bootstrap-owned marker metadata and both transaction
+functions compare control nonce with that marker. The marker bootstrap, non-owner
+runner and case wiring are not implemented, so this is not a complete integration.
+The SQL has not been parsed or executed by PostgreSQL. Execution remains blocked.
+
+## Phase 9I-H: case contract only; execution blocked
+
+`case_contract.py` supplies an offline 17-case mapping and bounded maintenance
+request review with no credentials, database access or execution. The runner and
+SQL are **not** yet adapted to non-owner case identities; test setup and cleanup
+still refuse, and the bootstrap remains unapplied pseudocode. The execution block
+remains enabled. See [implementation limits](NON_OWNER_DESIGN.md#phase-9i-h-offline-case-contract-incomplete-implementation).
+
+## Phase 9I-G: minimum disposable architecture
+
+[Decision and go/no-go checklist](NON_OWNER_DESIGN.md#phase-9i-g-minimum-practical-architecture-decision): one new isolated container and private volume, 17 pre-created per-test databases, separate bootstrap, fixture, maintenance and teardown authorities, and a bounded independently checked manual teardown. A separate operator may accept maintenance's direct table-mutation risk only for a verified synthetic run; this is not production security evidence. Earlier lifecycle-controller/lease directions are historical and superseded for this bounded experiment. The current code is incompatible, `EXECUTION_BLOCKED` remains true, and another offline implementation/review phase is required. No setup, execution or teardown is authorized here.
+
+## Phase 9I-F reconciliation
+
+See the [compatibility matrix and authority interfaces](NON_OWNER_DESIGN.md#phase-9i-f-compatibility-matrix-supersedes-historical-execution-directions).
+`case_design.py` only compares supplied synthetic identities and evidence; it
+does not allocate, authenticate, connect, invoke maintenance or authorize cleanup.
+All 17 database cases remain blocked, and the three cleanup cases additionally
+need independent maintenance orchestration. No PostgreSQL execution is permitted.
+
+## Phase 9I-E: separate maintenance, offline only
+
+The [revised role manifest](NON_OWNER_DESIGN.md) separates fixture and maintenance
+roles. The fixture gets no windows DELETE, TRUNCATE, CREATE or ownership; maintenance
+uses a separately controlled process and credential, neither implemented nor
+available to the fixture runner. Its table-level DELETE and UPDATE can bypass the
+cleanup function and its trust policy. Exact privilege sufficiency is unverified.
+The dormant runner initialization and fixture resets now refuse; each test setup
+also refuses until independent per-case allocation and verification are implemented.
+The 17 cases remain present but cannot run. `EXECUTION_BLOCKED` remains true.
+
+`teardown_plan.py` is a pure offline comparison exercise, with no command, database,
+container or filesystem deletion capability. It returns only a review result; it
+cannot authenticate observations or record provenance, enforce a lease, consume
+one-use authorization, prevent replay or authorize deletion. Fresh independent
+resource verification and a separately approved teardown controller remain absent.
+No bootstrap or maintenance process is implemented; the manifest is unapplied
+pseudocode. Historical directions below do not authorize any operation.
+
 ## Phase 9I-D design review
 
 The [non-owner bootstrap, grants and teardown contract](NON_OWNER_DESIGN.md)

@@ -4,23 +4,28 @@
 DO $guard$
 DECLARE m record; n integer;
 BEGIN
-  IF current_database() !~ '^migramind_throttle_synthetic_[0-9a-f]{32}$'
-     OR current_user <> 'mm_synthetic_' || right(current_database(),32)
-     OR session_user <> current_user OR pg_is_in_recovery()
+  IF session_user <> current_user OR pg_is_in_recovery()
      OR (SELECT pg_get_userbyid(datdba) FROM pg_catalog.pg_database WHERE datname=current_database()) IS DISTINCT FROM current_user
      OR current_setting('transaction_read_only') <> 'off'
-     OR to_regclass('harness_bootstrap.identity') IS NULL THEN
+     OR to_regclass('harness_bootstrap.identity') IS NULL
+     OR NOT EXISTS (SELECT 1 FROM pg_catalog.pg_class cl
+       JOIN pg_catalog.pg_namespace ns ON ns.oid=cl.relnamespace
+       WHERE ns.nspname='harness_bootstrap' AND cl.relname='identity' AND cl.relkind='r'
+         AND pg_get_userbyid(cl.relowner)=current_user AND pg_get_userbyid(ns.nspowner)=current_user) THEN
     RAISE EXCEPTION 'Synthetic target guard rejected';
   END IF;
   SELECT count(*) INTO n FROM harness_bootstrap.identity;
   SELECT * INTO STRICT m FROM harness_bootstrap.identity WHERE id=1;
-  IF n<>1 OR m.nonce IS DISTINCT FROM right(current_database(),32)
+  IF n<>1 OR m.nonce IS NULL OR m.nonce !~ '^[0-9a-f]{32}$'
+     OR m.case_ordinal IS NULL OR m.case_ordinal NOT BETWEEN 1 AND 17
      OR m.classification IS DISTINCT FROM 'SYNTHETIC_ONLY_DISPOSABLE' OR m.synthetic_only IS DISTINCT FROM true
-     OR m.db_name IS DISTINCT FROM current_database() OR m.role_name IS DISTINCT FROM current_user
+     OR m.db_name IS DISTINCT FROM current_database() OR m.owner_name IS DISTINCT FROM current_user
+     OR m.fixture_role IS NULL OR m.maintenance_role IS NULL
+     OR m.fixture_role IN (current_user,m.maintenance_role) OR m.maintenance_role=current_user
      OR m.schema_tag IS DISTINCT FROM 'migramind-throttle-harness-v1' THEN
     RAISE EXCEPTION 'Synthetic marker guard rejected';
   END IF;
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname=current_user
+  IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname IN (m.fixture_role,m.maintenance_role)
              AND (rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls)) THEN
     RAISE EXCEPTION 'Privileged role refused';
   END IF;
@@ -78,7 +83,8 @@ BEGIN
   -- LOCK ORDER 2: global gate, including missing-key creation and maintenance.
   SELECT * INTO c FROM synthetic_throttle.control WHERE id=1 FOR UPDATE;
   IF NOT FOUND THEN RETURN 'unavailable'; END IF;
-  IF c.nonce<>right(current_database(),32) OR c.state<>'READY' THEN RETURN 'unavailable'; END IF;
+  IF c.nonce IS DISTINCT FROM (SELECT nonce FROM harness_bootstrap.identity WHERE id=1 AND db_name=current_database())
+     OR c.state<>'READY' THEN RETURN 'unavailable'; END IF;
   IF c.generation IS DISTINCT FROM p_generation OR c.writer_hint IS DISTINCT FROM p_writer OR p_time_trusted IS DISTINCT FROM true
      OR p_fresh IS DISTINCT FROM true THEN
     UPDATE synthetic_throttle.control SET state='QUARANTINED' WHERE id=1;
@@ -135,7 +141,8 @@ DECLARE c synthetic_throttle.control%ROWTYPE;r record;v_first bigint;v_now bigin
 BEGIN
   IF p_batch NOT BETWEEN 1 AND 100 OR p_batch IS NULL THEN RAISE EXCEPTION 'Bounded synthetic batch required';END IF;
   SELECT * INTO c FROM synthetic_throttle.control WHERE id=1 FOR UPDATE;
-  IF NOT FOUND OR c.state<>'READY' OR c.nonce<>right(current_database(),32) THEN RETURN -1;END IF;
+  IF NOT FOUND OR c.state<>'READY' OR c.nonce IS DISTINCT FROM
+    (SELECT nonce FROM harness_bootstrap.identity WHERE id=1 AND db_name=current_database()) THEN RETURN -1;END IF;
   -- Caller assertions are required for maintenance as well as admission.
   IF c.generation IS DISTINCT FROM p_generation OR c.writer_hint IS DISTINCT FROM p_writer
      OR p_time_trusted IS DISTINCT FROM true OR p_fresh IS DISTINCT FROM true THEN

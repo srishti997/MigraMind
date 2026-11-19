@@ -1,5 +1,32 @@
 # Phase 2: release readiness
 
+## Phase 9I-I: partial non-owner SQL transition — blocked (2026-11-19)
+
+Unapplied SQL now uses explicit marker nonce and a bootstrap-owner guard, but the
+bootstrap marker/template, non-owner runner and per-case setup are not integrated.
+Execution remains blocked and the harness is not ready for pre-execution approval.
+Offline checks passed: **31** harness, **5** case-design, **2** contract, **3**
+teardown and **36** model tests. No PostgreSQL tests, SQL execution, container,
+provisioning, installation or teardown occurred. [Details](SHARED_AUTH_THROTTLING_PLAN.md#phase-9i-i-partial-sql-transition-integration-blocked-2026-11-19).
+
+## Phase 9I-H: case contract only — blocked (2026-11-19)
+
+Offline case mapping and maintenance request checks were added; **30** harness, **5** case-design, **2** contract, **3** teardown and **36** model checks passed. The mapping does not connect or authenticate; actual test setup still refuses. SQL and runner retain legacy owner/nonce assumptions and bootstrap remains pseudocode. Execution stays blocked; no PostgreSQL, container, SQL, provisioning, install or teardown was performed. [Details](SHARED_AUTH_THROTTLING_PLAN.md#phase-9i-h-offline-case-contract-not-execution-ready-2026-11-19).
+
+## Phase 9I-G: minimal disposable architecture — no-go (2026-11-19)
+
+The [offline decision](SHARED_AUTH_THROTTLING_PLAN.md#phase-9i-g-minimum-disposable-postgresql-architecture-2026-11-19) proposes one new container/private volume, 17 pre-created case databases, separated authorities and independently checked manual teardown. Maintenance UPDATE/DELETE can bypass cleanup controls; its risk may be explicitly accepted by a responsible reviewer for a verified synthetic run only and is not production security evidence. Current legacy SQL and runner do not implement this architecture. **Execution remains blocked; another offline implementation and review phase is required.** No container, provisioning, connection, SQL, installation or teardown was performed or authorized.
+
+Offline checks passed: **30** harness static, **5** case-design, **3** teardown-comparator and **36** model tests. `git diff --check` passed with line-ending warnings; database cases were not run.
+
+## Phase 9I-F: architecture reconciliation, offline only (2026-11-19)
+
+The [compatibility matrix](../prototypes/synthetic_pg_transaction_harness/NON_OWNER_DESIGN.md#phase-9i-f-compatibility-matrix-supersedes-historical-execution-directions) records legacy fixture-owner assumptions and needed non-owner replacements. New case/maintenance interfaces are pure advisory comparisons; they cannot allocate, authenticate, connect or invoke cleanup. Maintenance table UPDATE/DELETE can bypass cleanup policy, and no new elevated mechanism or executable bootstrap was introduced. All 17 PostgreSQL cases remain blocked. Offline static **30**, case-design **5**, teardown **3**, and model **36** tests passed. No database connection, SQL, provisioning, container, installation or teardown occurred. Execution remains blocked pending independently reviewed bootstrap, identity and maintenance controls.
+
+## Phase 9I-E: offline separate-maintenance preparation (2026-11-19)
+
+The fixture role's proposed grants exclude windows DELETE; an independent maintenance role has table-level DELETE and UPDATE, which can bypass cleanup policy. No maintenance credentials or process are implemented in the runner. The runner's DDL/reset path now refuses and test setup refuses until a verified per-case allocator exists. The offline teardown comparator cannot authenticate evidence, prevent replay or delete resources. PostgreSQL execution remains blocked; non-owner bootstrap and verification remain incomplete. Harness static **30 passed**, teardown comparator **3 passed**, model **36 passed**; PostgreSQL cases were not run. No connection, SQL, container, provisioning, installation or teardown occurred. [Detailed record](SHARED_AUTH_THROTTLING_PLAN.md#phase-9i-e-separate-maintenance-role-offline-preparation-2026-11-19).
+
 ## Phase 9I-D: non-owner design only (2026-11-18)
 
 An [unapplied non-owner design](../prototypes/synthetic_pg_transaction_harness/NON_OWNER_DESIGN.md) specifies separate bootstrap, fixture and teardown authorities, fresh pre-created per-test databases, scoped fixture grants and an independently verified teardown contract. The fixture owns no database or object and has no TRUNCATE or CREATE grant. The proposed controller and bootstrap do not exist; current code is incompatible and **execution remains blocked**. Assertions alone are not evidence of disposable identity or freshness. Offline tests: **29 harness checks passed**, **36 model checks passed**; `git diff --check` passed with a line-ending warning. No SQL, connection, provisioning, installation, container or teardown occurred. The Phase 9I-C gates remain open.
