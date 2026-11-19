@@ -12,18 +12,11 @@ class TransactionTests(unittest.TestCase):
     def setUpClass(cls):
         if harness.ACTIVE_CONTEXT is None or harness._EXECUTION_PERMIT is None:
             raise unittest.SkipTest('Stage B explicit disposable-target runner required; no connection attempted')
-        if not harness.ACTIVE_CONTEXT.initialized:
-            raise harness.SafetyError('Fresh runner-owned schema required')
         cls.context=harness.ACTIVE_CONTEXT
 
     def setUp(self):
-        # Fixture-only reset, authorized only after fresh schema creation in this run.
-        with self.context.connect() as connection, harness.transaction(connection):
-            row=connection.execute('SELECT nonce FROM synthetic_throttle.control WHERE id=1').fetchone()
-            self.assertEqual(row,(self.context.target.nonce,))
-            connection.execute('TRUNCATE synthetic_throttle.windows')
-            connection.execute("UPDATE synthetic_throttle.control SET generation='synthetic-generation-1',writer_hint='synthetic-primary-1',state='READY',last_db_ms=0,key_count=0,max_keys=10000 WHERE id=1")
-            connection.execute('UPDATE synthetic_throttle.bindings SET valid=true WHERE id=1')
+        # No case allocator or independent identity verifier exists yet. Refuse.
+        raise harness.SafetyError('Independently verified fresh per-test case required')
 
     def attempt(self,**values):
         with self.context.connect() as connection, harness.transaction(connection):
@@ -36,10 +29,7 @@ class TransactionTests(unittest.TestCase):
 
     def cleanup(self,stamp,after=None,batch=100,fault=None, generation='synthetic-generation-1',
                 writer='synthetic-primary-1',time_trusted=True,fresh=True):
-        with self.context.connect() as connection,harness.transaction(connection):
-            value=connection.execute('SELECT synthetic_throttle.cleanup(%s,%s,%s,%s,%s,%s,%s,%s)',
-                (stamp,after,batch,fault,generation,writer,time_trusted,fresh)).fetchone()[0]
-        return value
+        raise harness.SafetyError('Independent maintenance process not implemented')
 
     def _race(self,*,ip_boundary=False,new_keys=False):
         for index in range(0 if new_keys else (29 if ip_boundary else 9)):

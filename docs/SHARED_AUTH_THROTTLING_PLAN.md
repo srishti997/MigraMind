@@ -1,5 +1,50 @@
 # Phase 9B: shared authentication throttling audit and design
 
+## Phase 9I-I: partial SQL transition, integration blocked (2026-11-19)
+
+The unapplied schema now expects a bootstrap-owned marker with case ordinal and
+separate fixture/maintenance identities. Reservation and cleanup compare control
+nonce to marker metadata instead of extracting a database-name suffix. Static text
+checks pass, but SQL parsing, privileges and marker integrity are unverified. The
+marker bootstrap/template, exact non-owner runner identity verification, per-test
+case acquisition and independent maintenance execution remain unimplemented. The
+17-case mapping is not wired into setup, which still refuses. Existing runner
+identity assumptions remain incompatible. Execution stays blocked; this partial
+change is not ready for independent pre-execution approval.
+
+Offline checks: harness static **31 passed**, case design **5**, contract **2**,
+teardown comparator **3**, model **36**. PostgreSQL tests were not run. No SQL,
+connection, provisioning, container operation, installation or teardown occurred.
+Maintenance direct UPDATE/DELETE still requires explicit synthetic-only risk review.
+
+## Phase 9I-H: offline case contract, not execution-ready (2026-11-19)
+
+Added a pure 17-test/ordinal mapping and bounded maintenance request-review contract. Three cases require maintenance; wrong case, incomplete evidence, invalid batch/time or inappropriate injected fault refuses. It neither authenticates evidence nor invokes cleanup. Static checks: harness **30**, case design **5**, case contract **2**, teardown **3**, model **36** passed; database tests not run. PostgreSQL connection, SQL execution, container, provisioning, installation and teardown did not occur.
+
+**Implementation remains incomplete.** `schema.sql` still requires fixture database ownership and uses the old name suffix in both control paths; harness identity verification remains owner-based, the per-case mapping is not wired into test setup, and the non-owner bootstrap remains pseudocode. The execution block remains enabled; no safe role/ownership enforcement or PostgreSQL grant verification is claimed. Review and replace these coupled assumptions as one coherent bootstrap/runner change before any separately approved disposable execution. Maintenance direct UPDATE/DELETE remains a synthetic-only risk requiring explicit review.
+
+## Phase 9I-G: minimum disposable PostgreSQL architecture (2026-11-19)
+
+The [architecture decision and go/no-go checklist](../prototypes/synthetic_pg_transaction_harness/NON_OWNER_DESIGN.md#phase-9i-g-minimum-practical-architecture-decision) select one fresh disposable container and private volume, 17 pre-created isolated case databases, separate bootstrap/fixture/maintenance/teardown authorities, independent identity/privilege checks and a bounded manually controlled teardown. This supersedes the proposed custom lifecycle-controller/lease requirement for this limited experiment, without claiming a manual process is race-proof. Three cleanup cases need an independent maintenance handoff, including a protocol distinguishing verified real conditions from injected synthetic failures.
+
+Direct maintenance UPDATE/DELETE can bypass cleanup policy. The recommendation is conditional acceptance **only for a verified disposable synthetic run**, subject to explicit responsible-reviewer approval; no such acceptance follows from this offline architecture review. This does not establish production cleanup security, time continuity or snapshot freshness. No SECURITY DEFINER, RLS or lifecycle service is introduced. The legacy owner guard, verification and runner remain incompatible; execution stays blocked, and a further offline implementation and review phase is required. Separate approval is required before any container, SQL, execution or teardown.
+
+Existing offline tests: harness static **30 passed**, case design **5 passed**, teardown comparator **3 passed**, and model/SQL shape **36 passed**; `git diff --check` passed with line-ending warnings. No database tests were run.
+
+## Phase 9I-F: offline architecture reconciliation (2026-11-19)
+
+The [compatibility matrix](../prototypes/synthetic_pg_transaction_harness/NON_OWNER_DESIGN.md#phase-9i-f-compatibility-matrix-supersedes-historical-execution-directions) maps legacy fixture-owner SQL, owner-based target verification, single-target naming, bootstrap/reset and fixture cleanup to the required non-owner changes. The pure `case_design.py` derives per-case identities and refuses supplied collisions, incomplete inventories, stale states and maintenance evidence mismatches. It does not allocate or authenticate resources, ensure freshness or isolate credentials; its maintenance result is review only. The teardown comparator remains advisory. All 17 database tests remain blocked; three require separate maintenance orchestration.
+
+Existing maintenance UPDATE/DELETE permits bypass of cleanup trust policy. Alternatives are separately reviewed SECURITY DEFINER, RLS, or explicit acceptance of the disposable-case residual risk; none is introduced. No executable bootstrap was added because privileges, ownership, direct mutation and PostgreSQL behavior cannot be established from static text. Legacy SQL and identity checks remain incompatible and execution remains blocked. Static harness **30 passed**, case-design **5 passed**, teardown comparator **3 passed**, model **36 passed**. No PostgreSQL connection, SQL execution, container operation, provisioning, installation or teardown occurred. A verified non-owner bootstrap, independently authenticated one-use allocator/maintenance interfaces and safe separate lifecycle authority remain future work, requiring separate review and approval.
+
+## Phase 9I-E: separate maintenance role, offline preparation (2026-11-19)
+
+The revised unapplied [role design](../prototypes/synthetic_pg_transaction_harness/NON_OWNER_DESIGN.md) separates bootstrap, per-case fixture, per-case maintenance and infrastructure teardown authorities. Fixture has SELECT/INSERT/UPDATE on windows but no DELETE; maintenance has SELECT/UPDATE/DELETE on windows and SELECT/UPDATE on control, plus narrowly listed schema, database, marker and function grants. UPDATE supports row locking. Maintenance's direct table privileges can bypass cleanup policy; grants are not enforcement of time, freshness or expiry. No RLS or SECURITY DEFINER is introduced. No maintenance credential or executable maintenance process is provided to the runner.
+
+The dormant `initialize` and per-test reset now refuse without SQL, and test setup refuses pending a real verified per-case allocator; the 17 test cases remain but cannot execute. Cleanup calls refuse pending a separately controlled process. The existing execution block stays true. Legacy server identity checks and SQL remain owner-based and incompatible, and bootstrap remains pseudocode, not a finished executable template. This is partial offline hardening, not a completed non-owner runner.
+
+The pure offline teardown comparator checks supplied identities, stopped state, revisions, bounded observation age and affirmative conditions, and emits only a review result. It does not authenticate inputs, verify real resources, enforce or consume a lease, prevent replay, or delete anything. A protected record, independent observers and separate teardown authority are still required. Static checks **30 passed**, comparator tests **3 passed**, model/SQL-shape **36 passed**; no PostgreSQL tests ran. No connection, SQL execution, Docker, provisioning, installation or teardown occurred. Independent review of DELETE/UPDATE risks, complete non-owner bootstrap, identity verification, credential isolation and separate maintenance implementation remain blockers before any future execution approval.
+
 ## Phase 9I-D: non-owner design review (2026-11-18)
 
 The [unapplied design](../prototypes/synthetic_pg_transaction_harness/NON_OWNER_DESIGN.md) separates an independent bootstrap owner, a non-owner fixture login with scoped invoker-function/table privileges, and an independent container/volume teardown authority. Bootstrap owns the database, schemas, tables, functions and indexes; the fixture owns none. Each test gets a pre-created fresh case database and role, avoiding fixture TRUNCATE, CREATE or owner privileges. The manifest is placeholder SQL for review, not executable bootstrap. No SECURITY DEFINER helper is proposed; direct DELETE remains limited to the synthetic windows table for the cleanup case. Actual minimum grants and catalog behavior remain unvalidated.

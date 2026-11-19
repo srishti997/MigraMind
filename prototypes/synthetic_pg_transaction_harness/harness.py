@@ -241,15 +241,7 @@ def reserve(connection, *, action='login', ip='192.0.2.1', account='synthetic@ex
 
 
 def initialize(context):
-    with context.connect() as connection:
-        if connection.execute("SELECT to_regnamespace('synthetic_throttle')").fetchone()[0] is not None:
-            raise SafetyError('Existing harness schema refused; new disposable target required')
-        with connection.transaction():
-            connection.execute(Path(__file__).with_name('schema.sql').read_text(encoding='utf-8'),prepare=False)
-            connection.execute('INSERT INTO synthetic_throttle.control VALUES(1,%s,%s,%s,%s,0,0,10000)',
-                (context.target.nonce,'synthetic-generation-1','synthetic-primary-1','READY'))
-            connection.execute('INSERT INTO synthetic_throttle.bindings VALUES(1,true)')
-    context.initialized=True
+    raise SafetyError('Fixture bootstrap is owned by independent authority')
 
 
 @contextmanager

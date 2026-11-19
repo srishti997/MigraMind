@@ -197,10 +197,19 @@ class SqlAndSourceChecks(unittest.TestCase):
         for token in ('GRANT CONNECT ON DATABASE <case_database>',
                       'GRANT SELECT, UPDATE ON synthetic_throttle.control',
                       'GRANT SELECT, UPDATE ON synthetic_throttle.bindings',
-                      'GRANT SELECT, INSERT, UPDATE, DELETE ON synthetic_throttle.windows',
+                      'GRANT SELECT, INSERT, UPDATE ON synthetic_throttle.windows TO <fixture_role>',
+                      'GRANT SELECT, UPDATE, DELETE ON synthetic_throttle.windows TO <maintenance_role>',
                       'REVOKE ALL ON ALL FUNCTIONS IN SCHEMA synthetic_throttle FROM PUBLIC'):
             self.assertIn(token,self.design)
         self.assertIn('Existing lifecycle',self.design)
+
+    def test_no_fixture_reset_or_direct_maintenance(self):
+        self.assertNotIn('TRUNCATE synthetic_throttle.windows',self.prepared)
+        self.assertNotIn('SELECT synthetic_throttle.cleanup(',self.prepared)
+        self.assertIn('Independently verified fresh per-test case required',self.prepared)
+        self.assertIn('Independent maintenance process not implemented',self.prepared)
+        self.assertIn('Fixture bootstrap is owned by independent authority',self.source)
+        self.assertNotIn('GRANT SELECT, INSERT, UPDATE, DELETE ON synthetic_throttle.windows TO <fixture_role>',self.design)
 
     def test_sql_guard_precedes_ddl_and_has_no_application_or_database_provisioning(self):
         self.assertLess(self.sql.index('DO $guard$'),self.sql.index('CREATE SCHEMA'))
@@ -217,6 +226,12 @@ class SqlAndSourceChecks(unittest.TestCase):
                       'max_keys BETWEEN 2 AND 10000','v_count<>c.key_count'):
             self.assertIn(token,self.sql)
         self.assertNotIn('ON CONFLICT',self.sql)
+
+    def test_control_nonce_comes_from_explicit_bootstrap_marker(self):
+        self.assertNotIn('right(current_database(),32)',self.sql)
+        self.assertEqual(self.sql.count('(SELECT nonce FROM harness_bootstrap.identity WHERE id=1 AND db_name=current_database())'),2)
+        self.assertIn('m.case_ordinal NOT BETWEEN 1 AND 17',self.sql)
+        self.assertIn('m.owner_name IS DISTINCT FROM current_user',self.sql)
 
     def test_lock_order_and_post_wait_primary_time_shape(self):
         reserve_sql=self.sql.split('CREATE FUNCTION synthetic_throttle.reserve_attempt')[1].split('$reserve$;')[0]
