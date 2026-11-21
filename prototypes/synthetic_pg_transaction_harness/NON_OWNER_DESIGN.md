@@ -1,5 +1,164 @@
 # Phase 9I-D non-owner fixture and teardown design v1
 
+## Phase 9I-L: exclusive batch controller trust review (2026-11-21)
+
+**Design decision, not an implementation or authorization.** For this bounded
+experiment, use one controller process under a dedicated host OS identity, with
+a separate fixture identity and separately controlled bootstrap, maintenance and
+teardown authorities. No PostgreSQL execution block is removed. The following
+component is justified only if all 17 cases and repeatable crash/refusal checks
+are worth implementing; a single manually supervised, never-restarted run is
+simpler but depends more heavily on humans to prevent reuse and wrong-case access.
+
+### Concrete claim store and state boundary
+
+Use a **new, dedicated local SQLite metadata file**, separate from all MigraMind
+data and the PostgreSQL volume, in a directory owned by the controller OS identity.
+OS ACLs must deny fixture, maintenance and ordinary users read/write/replace access
+to the directory and file, including SQLite journal files; separately controlled
+bootstrap/teardown identities do not need claim-store write access. The store holds
+no database passwords or health data. Its versioned record contains the full
+immutable container ID, image digest/version, full private-volume ID and owner,
+loopback port, run ID/nonce, and exactly 17 canonical test-name/ordinal entries,
+each binding database, fixture/maintenance role, bootstrap owner, marker identity,
+generation and writer. A reviewed canonical serialization/hash detects accidental
+changes; the hash is not authentication against an actor who can rewrite the store.
+The protected record is populated only from separately verified bootstrap/runtime
+observations, not self-reported fixture assertions.
+
+Before any fixture credential is issued, the controller takes an OS-level
+exclusive process lock, verifies its own OS identity and exclusive resource
+ownership, then opens the dedicated store and atomically inserts a **whole-batch
+consumed** row with unique constraints on run ID, container ID, volume ID and
+nonce in one serialized transaction. Use a reviewed local filesystem and SQLite
+transaction configuration with durable commit (for example FULL synchronous
+with an appropriate journal mode), and confirm the commit succeeded before
+issuing any credential. Commit errors, unknown outcome, lock/store failure,
+duplicate key, missing or malformed record, unverified mapping or failed flush
+are refusal; never treat a timeout as permission to retry issuance. An independent
+offline implementation review and crash tests must establish the actual platform's
+locking, SQLite sync and storage guarantees; neither a function return nor a
+human assertion proves that a device honored durability. All later invocations
+check the durable consumed row and refuse that batch. This is a per-run claim
+store, not a network allocator or general lifecycle service. It is a *proposed*
+isolated metadata store: no SQLite file is created or opened in this review.
+
+The claim is permanent even if zero credentials were issued. The controller
+maintains the 17-case mapping in memory only during its single process lifetime,
+starts each mapped test at most once, and abandons the whole batch on interruption,
+ambiguous result, broken exclusivity or restart. Any restart refuses the consumed
+record; it never reconstructs per-case progress or reissues credentials. A new
+run requires a new independently verified container, private volume, nonce and
+case identities. If claim state is unavailable or might have rolled back, stop
+and preserve resources for separate review, not a new attempt against them.
+
+### Principals and authentication
+
+| Boundary | Control to implement and verify | Residual trust |
+| --- | --- | --- |
+| Bootstrap → controller | Independent operator verifies exact container/volume, marker, role ownership and grants; supplies an approved record through a protected channel. | Bootstrap and OS/runtime observations must be authentic; labels alone prove nothing. |
+| Controller → fixture | Controller starts the fixed test under a distinct restricted OS identity. An inherited, non-inheritable-by-other-children private pipe or OS-authenticated IPC delivers only that case's fixture credential after durable claim and mapping check. Verify the child process/OS identity and bind the message to run, test and case; do not use command arguments, environment variables or shared files for credentials. | Fixture may perform multiple operations within its granted case. Host administrator/debugger or a compromised controller can still steal or copy credentials. Exact IPC/OS behavior requires platform review. |
+| Fixture → maintenance | Controller relays only a request ID, exact run/case/test, bounded operation and synthetic injection, never a maintenance credential. Independent maintenance authority authenticates the controller/request, independently rechecks case/marker, generation/writer and actual time/freshness, then separately approves and uses its own credential. | Maintenance's direct UPDATE/DELETE can bypass the function; explicit synthetic-only risk acceptance is required. |
+| Maintenance → controller | An authenticated channel binds a single confirmation to the run, case, unique request ID, operation and a committed result or sanitized SQLSTATE. Controller refuses duplicates, mismatch, unknown commit, missing/ambiguous confirmation or channel loss and abandons the batch. | Authentication and result provenance must be implemented independently. Synthetic false arguments for negative tests are allowed only after real evidence passes. |
+| Teardown | Separately approved operator verifies exact resource identities and ownership; no deletion command or credential is available to fixture/controller test code. | Manual verification and runtime state can race; uncertainty stops deletion. |
+
+The claim store and OS ACL can enforce exclusivity and at-most-once *controller
+issuance* only if their documented atomicity, durability, access control and
+controller code hold. They do not enforce one SQL transaction per fixture, prove
+server freshness, prevent a compromised authorized controller from violating the
+protocol, or withstand an administrator who can rewrite all trust roots and
+restore both claim state and the container. Protection against coordinated rollback
+requires an independently controlled non-rollbackable ledger or equivalent; that
+additional authority is not part of this bounded design. Operator attestations of
+freshness or isolation are conditions, not cryptographic proof.
+
+### Manual alternative and go/no-go
+
+For a one-off demonstration, a separately supervised manual procedure with one
+operator, a recorded one-use batch, 17 pre-created cases, separate maintenance
+operator and total abandonment after interruption is simpler. A controller
+materially improves repeatable mapping, duplicate refusal and crash handling only
+after its store durability, OS isolation, IPC and failure paths are implemented
+and independently tested; until then it adds complexity and is not a safety proof.
+Do not weaken the one-use requirement merely to use a human checklist.
+
+**No-go** unless independent reviewers approve the exact fresh container/volume,
+case inventory and effective privileges; protected store/OS identities and
+atomic durable claim semantics are demonstrated; credential/maintenance channels
+are authenticated and separated; failure/rollback and synthetic-only maintenance
+risk are reviewed; and separate execution and teardown approvals are obtained.
+No component in this section is implemented. Minimal next work, if justified:
+implement only the controller's protected batch claim and crash/refusal tests in
+isolation, followed by fixed case dispatch and independent maintenance handoff;
+review them before considering a separate PostgreSQL execution authorization.
+
+## Phase 9I-K: bounded single-run acquisition decision (2026-11-21)
+
+Recommend **B: one independently controlled exclusive single-run controller**
+for this disposable 17-case experiment. A general durable allocator service (A)
+can support resumable or distributed runs and atomic per-case claims, but adds
+infrastructure not needed for one bounded run. Both A and B need trusted state
+and authentication. A fresh container and 17 databases reduce the problem to
+exclusive use of one pre-bound batch; they do not themselves prevent a second
+controller, copied credentials, replay, restore or reuse after a crash.
+
+For B, the independent run owner creates a protected run record binding a unique
+run ID/nonce, full container and volume identities, fixed test-name-to-ordinal
+mapping, case database and role identities, owner, marker, writer and generation.
+Before giving any case credential to a fixture process, the controller must
+atomically and durably mark the **entire batch consumed** in state inaccessible
+to fixture and maintenance processes. Exclusive control of the record and
+container, authenticated controller identity, atomic create-if-absent/consume,
+and a reliable refusal of another controller are necessary. An exclusive host
+lock alone is insufficient across restart or loss of its lock. The consumed
+record must survive controller failure and be checked before any later run.
+
+The controller starts only the fixed test mapped to each fresh case, once; the
+fixture gets only that case's restricted credential and cannot access bootstrap,
+maintenance or teardown credentials. Keep the record and credential distribution
+under an independently controlled OS/runtime identity; prevent other principals
+from starting a runner or reaching its credentials. Observe and verify the
+container, database identities and effective privileges separately. If the
+controller stops, a result is uncertain, exclusive control cannot be confirmed,
+state is missing, or a duplicate/stale assignment is presented, stop the run
+and never resume or reissue any case from that batch. Use a new independently
+verified run and fresh resources only after separately authorized handling of the
+old instance. An immutable record of consumption cannot be replaced by a local
+boolean supplied by the fixture. Durable batch consumption is still necessary
+for the stated cross-restart replay guarantee; B avoids a *general-purpose*
+allocator, not durable trusted state.
+
+Under those assumptions, an atomic durable batch claim and restricted credential
+distribution can enforce at-most-once **controller issuance** and bind each
+issued credential to its designated test. It does not prove a case was unused
+before bootstrap, that a compromised runner cannot issue multiple transactions,
+or that a host/runtime administrator cannot copy credentials, roll back state or
+start another container. Those are independent verification and operator trust
+conditions; advisory Python comparisons do not authenticate them. No guarantee
+survives a restore of both protected consumption state and instance to an older
+snapshot unless an external non-rollbackable authority detects it.
+
+The three cleanup tests pause for separately authenticated maintenance approval.
+The independent maintenance operator verifies the exact run/case, marker,
+generation, writer, actual time/freshness and requested bounded operation, then
+performs the test-only operation under its own credential and confirms the case,
+request, result or sanitized SQLSTATE back over an authenticated channel. The
+negative cases may inject false *test inputs* only after actual evidence passes.
+Ambiguous confirmation or commit causes the case/run to stop, not retry. The
+fixture never receives the maintenance credential. Maintenance UPDATE/DELETE
+can bypass cleanup policy, requiring explicit synthetic-only risk acceptance.
+
+This choice relaxes **resumption and per-case reissue**, not the original
+at-most-once safety objective: an interrupted batch is abandoned wholesale. It
+also limits enforcement to the independently controlled host/state boundary;
+protection against a malicious administrator or coordinated rollback requires
+an additional independent authority. Neither this controller nor protected durable
+state/authenticated handoffs are implemented. `EXECUTION_BLOCKED` remains true;
+separate bootstrap, execution and teardown approvals and all existing isolation
+checks remain required. Smallest next step: specify and independently review the
+controller's atomic batch-consume storage, exclusive process/credential boundary,
+crash behavior and maintenance confirmation protocol offline before implementation.
+
 ## Phase 9I-E subsequent update: dormant non-owner identity shape
 
 `Target` now derives case database, fixture, maintenance and bootstrap-owner
