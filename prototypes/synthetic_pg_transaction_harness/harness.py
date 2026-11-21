@@ -33,17 +33,24 @@ class SafetyError(Exception): pass
 class Target:
     nonce: str
     port: int
+    ordinal: int = 1
 
     def __post_init__(self):
         if not isinstance(self.nonce, str) or re.fullmatch('[0-9a-f]{32}', self.nonce) is None:
             raise SafetyError('Synthetic nonce required')
         if type(self.port) is not int or not 49152 <= self.port <= 65535:
             raise SafetyError('Explicit disposable high port required')
+        if type(self.ordinal) is not int or not 1 <= self.ordinal <= 17:
+            raise SafetyError('Case ordinal required')
 
     @property
-    def database(self): return 'migramind_throttle_synthetic_' + self.nonce
+    def database(self): return 'mm_case_' + self.nonce + '_' + str(self.ordinal).zfill(3)
     @property
-    def role(self): return 'mm_synthetic_' + self.nonce
+    def role(self): return 'mm_fixture_' + self.nonce + '_' + str(self.ordinal).zfill(3)
+    @property
+    def owner(self): return 'mm_owner_' + self.nonce
+    @property
+    def maintenance(self): return 'mm_maint_' + self.nonce + '_' + str(self.ordinal).zfill(3)
     @property
     def directory(self): return Path(tempfile.gettempdir()) / ('migramind-pg-harness-' + self.nonce)
 
@@ -135,7 +142,7 @@ def clean_environment(environment):
 
 
 def validate_server_identity(target,identity):
-    expected = (target.database, target.role, target.role, target.role, False, 'off', False, False, False, False, False)
+    expected = (target.database, target.role, target.role, target.owner, False, 'off', False, False, False, False, False)
     if (not isinstance(identity,(tuple,list)) or len(identity)!=11
             or any(type(identity[i]) is not bool for i in (4,6,7,8,9,10)) or tuple(identity) != expected):
         raise SafetyError('Database/owner/primary/role isolation mismatch')
@@ -143,8 +150,8 @@ def validate_server_identity(target,identity):
 
 def validate_identity(target, identity, marker, unexpected_objects):
     validate_server_identity(target,identity)
-    if (not isinstance(marker,(tuple,list)) or len(marker)!=6 or marker[2] is not True
-            or tuple(marker) != (target.nonce,CLASSIFICATION,True,target.database,target.role,SCHEMA_TAG)):
+    if (not isinstance(marker,(tuple,list)) or len(marker)!=9 or marker[3] is not True
+            or tuple(marker) != (target.nonce,target.ordinal,CLASSIFICATION,True,target.database,target.owner,target.role,target.maintenance,SCHEMA_TAG)):
         raise SafetyError('Synthetic-only bootstrap marker mismatch')
     if type(unexpected_objects) is not int or unexpected_objects!=0:
         raise SafetyError('Unexpected database objects; refusing target')
@@ -169,13 +176,13 @@ def verify_target(connection, target):
     relation=connection.execute('''SELECT c.relkind,pg_get_userbyid(c.relowner),pg_get_userbyid(n.nspowner)
         FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
         WHERE n.nspname='harness_bootstrap' AND c.relname='identity' ''').fetchone()
-    if relation!=('r',target.role,target.role):raise SafetyError('Owned plain bootstrap table required')
+    if relation!=('r',target.owner,target.owner):raise SafetyError('Owned plain bootstrap table required')
     owned=connection.execute('''SELECT count(*) FROM pg_catalog.pg_class c
         JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
         WHERE n.nspname IN ('harness_bootstrap','synthetic_throttle')
-        AND pg_get_userbyid(c.relowner)<>current_user''').fetchone()[0]
+        AND pg_get_userbyid(c.relowner)<>%s''',(target.owner,)).fetchone()[0]
     if type(owned) is not int or owned!=0:raise SafetyError('Unexpected fixture object ownership')
-    rows = connection.execute('''SELECT nonce,classification,synthetic_only,db_name,role_name,schema_tag
+    rows = connection.execute('''SELECT nonce,case_ordinal,classification,synthetic_only,db_name,owner_name,fixture_role,maintenance_role,schema_tag
         FROM harness_bootstrap.identity WHERE id=1''').fetchall()
     marker_count = connection.execute('SELECT count(*) FROM harness_bootstrap.identity').fetchone()[0]
     unexpected = connection.execute('''SELECT count(*) FROM pg_catalog.pg_class c
@@ -193,6 +200,10 @@ class Context:
     def __init__(self, target, password):
         self.target, self._password = target, password
         self.initialized=False
+
+    def require_case(self, case):
+        # A shape comparison is not independently authenticated evidence.
+        raise SafetyError('Independently verified fresh per-test case required')
 
     @contextmanager
     def connect(self):

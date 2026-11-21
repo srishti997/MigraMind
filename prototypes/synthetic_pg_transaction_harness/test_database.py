@@ -5,6 +5,7 @@ import threading
 import time
 import unittest
 import harness
+from case_contract import case_for_test
 
 
 class TransactionTests(unittest.TestCase):
@@ -15,8 +16,10 @@ class TransactionTests(unittest.TestCase):
         cls.context=harness.ACTIVE_CONTEXT
 
     def setUp(self):
-        # No case allocator or independent identity verifier exists yet. Refuse.
-        raise harness.SafetyError('Independently verified fresh per-test case required')
+        # Selection is deterministic; the context still refuses until a real
+        # independent verifier and one-use case registry exist.
+        case=case_for_test(self.context.target.nonce,self._testMethodName)
+        self.context.require_case(case)
 
     def attempt(self,**values):
         with self.context.connect() as connection, harness.transaction(connection):

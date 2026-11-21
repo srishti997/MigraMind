@@ -1,5 +1,22 @@
 # Disposable PostgreSQL transaction harness — Stage A preparation
 
+## Phase 9I-E subsequent update: non-owner identity shape
+
+The dormant target and identity comparison now derive a case ordinal, fixture,
+maintenance and distinct bootstrap-owner identity. No independently verified
+case selection exists: test setup still refuses, and the execution block remains.
+The bootstrap template is unapplied, actual privileges are unverified, and the
+maintenance handoff and safe teardown remain separately controlled and unimplemented.
+
+## Phase 9I-E follow-up: incomplete non-owner integration
+
+The [unapplied bootstrap template](BOOTSTRAP_TEMPLATE.md) defines a marker and
+proposed per-case roles/grants. Test setup now selects its mapped case but refuses
+until independently authenticated one-use verification exists. SQL/driver/grant
+semantics are unverified, the legacy runner remains owner-based, and maintenance
+handoff is not implemented. Execution stays blocked; no setup or teardown is
+authorized. [Details](NON_OWNER_DESIGN.md#phase-9i-e-follow-up-bootstrap-template-and-fail-closed-case-selection).
+
 ## Phase 9I-I: partial SQL transition only
 
 The SQL guard now expects bootstrap-owned marker metadata and both transaction

@@ -1,5 +1,37 @@
 # Phase 9I-D non-owner fixture and teardown design v1
 
+## Phase 9I-E subsequent update: dormant non-owner identity shape
+
+`Target` now derives case database, fixture, maintenance and bootstrap-owner
+identities from nonce and ordinal. Its dormant server identity comparison expects
+the database owner to be the bootstrap owner rather than the fixture, and the
+marker comparison includes ordinal and both non-owner roles. Marker/table owner
+queries expect the bootstrap owner. These comparisons have only offline tests;
+effective privileges, complete objects, independent evidence and PostgreSQL
+semantics remain unverified. The manifest still does not select a case, and
+`require_case` refuses every test pending independent one-use verification.
+Consequently this is an incomplete refactor, not an executable non-owner runner.
+The 17 tests and their assertions remain blocked, maintenance remains separately
+controlled and unimplemented, and teardown comparator remains advisory only.
+
+## Phase 9I-E follow-up: bootstrap template and fail-closed case selection
+
+[BOOTSTRAP_TEMPLATE.md](BOOTSTRAP_TEMPLATE.md) provides a non-executable marker,
+role and grant template for 17 nonce/ordinal cases. The SQL guard now compares
+those derived identities and rejects missing/privileged roles and direct role
+memberships. It remains unexecuted; this does not prove effective privileges or
+safe bootstrap, including how the bootstrap authority acts as the NOLOGIN owner.
+
+Test setup selects the existing mapped case but `Context.require_case` refuses:
+there is no independently authenticated verifier or durable one-use registry.
+`validate_precreated_case` checks supplied values only and explicitly returns
+review-only, not verification. The legacy runner identity and connection logic
+still expects fixture ownership and is incompatible with this template. The
+17 tests cannot run; the three cleanup cases also lack their independent
+maintenance process. Execution stays blocked. The teardown comparator remains
+advisory and cannot inspect resources, authenticate a protected record, enforce
+one-use authorization or delete anything.
+
 ## Phase 9I-I: partial SQL transition; integration remains blocked
 
 `schema.sql` now checks a bootstrap-owned marker relation and expects its owner,

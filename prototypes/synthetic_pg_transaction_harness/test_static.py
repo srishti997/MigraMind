@@ -17,16 +17,16 @@ class SafetyChecks(unittest.TestCase):
 
     def marker(self):
         t=self.target
-        return (t.nonce,harness.CLASSIFICATION,True,t.database,t.role,harness.SCHEMA_TAG)
+        return (t.nonce,t.ordinal,harness.CLASSIFICATION,True,t.database,t.owner,t.role,t.maintenance,harness.SCHEMA_TAG)
 
     def identity(self):
         t=self.target
-        return (t.database,t.role,t.role,t.role,False,'off',False,False,False,False,False)
+        return (t.database,t.role,t.role,t.owner,False,'off',False,False,False,False,False)
 
     def test_target_is_derived_high_port_and_bounded_identifier(self):
-        self.assertTrue(self.target.database.startswith('migramind_throttle_synthetic_'))
+        self.assertTrue(self.target.database.startswith('mm_case_'))
         self.assertLessEqual(len(self.target.database),63);self.assertLessEqual(len(self.target.role),63)
-        self.assertEqual(set(harness.Target.__dataclass_fields__),{'nonce','port'})
+        self.assertEqual(set(harness.Target.__dataclass_fields__),{'nonce','port','ordinal'})
 
     def test_rejects_connection_string_host_or_credential_manifest_fields(self):
         valid=dict(format=1,classification=harness.CLASSIFICATION,nonce='a'*32,port=55432)
@@ -157,6 +157,11 @@ class SafetyChecks(unittest.TestCase):
             with self.subTest(marker=index),self.assertRaises(harness.SafetyError):
                 harness.validate_identity(self.target,self.identity(),bad,0)
         with self.assertRaises(harness.SafetyError):harness.validate_identity(self.target,self.identity(),self.marker(),1)
+        owner_as_fixture=list(self.identity());owner_as_fixture[3]=self.target.role
+        with self.assertRaises(harness.SafetyError):
+            harness.validate_identity(self.target,owner_as_fixture,self.marker(),0)
+        with self.assertRaises(harness.SafetyError):harness.Target('a'*32,55432,0)
+        with self.assertRaises(harness.SafetyError):harness.Target('a'*32,55432,18)
 
     def test_synthetic_identifiers_normalize_and_never_accept_real_inputs(self):
         a=harness.synthetic_keys('2001:db8::1',' SYNTHETIC@example.test ')
@@ -206,7 +211,8 @@ class SqlAndSourceChecks(unittest.TestCase):
     def test_no_fixture_reset_or_direct_maintenance(self):
         self.assertNotIn('TRUNCATE synthetic_throttle.windows',self.prepared)
         self.assertNotIn('SELECT synthetic_throttle.cleanup(',self.prepared)
-        self.assertIn('Independently verified fresh per-test case required',self.prepared)
+        self.assertIn('case_for_test(self.context.target.nonce,self._testMethodName)',self.prepared)
+        self.assertIn('Independently verified fresh per-test case required',self.source)
         self.assertIn('Independent maintenance process not implemented',self.prepared)
         self.assertIn('Fixture bootstrap is owned by independent authority',self.source)
         self.assertNotIn('GRANT SELECT, INSERT, UPDATE, DELETE ON synthetic_throttle.windows TO <fixture_role>',self.design)
@@ -232,6 +238,19 @@ class SqlAndSourceChecks(unittest.TestCase):
         self.assertEqual(self.sql.count('(SELECT nonce FROM harness_bootstrap.identity WHERE id=1 AND db_name=current_database())'),2)
         self.assertIn('m.case_ordinal NOT BETWEEN 1 AND 17',self.sql)
         self.assertIn('m.owner_name IS DISTINCT FROM current_user',self.sql)
+
+    def test_bootstrap_template_restricts_fixture_and_separates_maintenance(self):
+        template=Path(__file__).with_name('BOOTSTRAP_TEMPLATE.md').read_text(encoding='utf-8')
+        for part in ('CREATE DATABASE <case_database> OWNER <owner>',
+                     'CREATE SCHEMA harness_bootstrap AUTHORIZATION <owner>',
+                     'GRANT SELECT, INSERT, UPDATE ON synthetic_throttle.windows TO <fixture>',
+                     'GRANT SELECT, UPDATE, DELETE ON synthetic_throttle.windows TO <maintenance>',
+                     'NOCREATEDB NOCREATEROLE', 'NOBYPASSRLS NOINHERIT'):
+            self.assertIn(part,template)
+        self.assertNotIn('GRANT DELETE ON synthetic_throttle.windows TO <fixture>',template)
+        self.assertNotIn('GRANT TRUNCATE',template)
+        self.assertNotIn('GRANT CREATE',template)
+        self.assertIn('NOT VALID SQL',template)
 
     def test_lock_order_and_post_wait_primary_time_shape(self):
         reserve_sql=self.sql.split('CREATE FUNCTION synthetic_throttle.reserve_attempt')[1].split('$reserve$;')[0]

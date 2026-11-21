@@ -1,5 +1,26 @@
 # Phase 9B: shared authentication throttling audit and design
 
+## Phase 9I-E subsequent update: dormant non-owner identity (2026-11-21)
+
+The dormant `Target` now derives case-ordinal database/fixture/maintenance names
+and a distinct bootstrap owner. Identity, marker and relation-owner comparisons
+expect that owner, not the fixture. Existing static tests reject fixture ownership
+and missing/mismatched metadata. The manifest does not yet select a case and the
+independently verified one-use case registry is absent: `require_case` refuses all
+17 tests. Effective privilege/object checks and actual PostgreSQL behavior remain
+unverified; bootstrap is still an unapplied template, separate maintenance is not
+implemented and teardown is advisory. Execution remains blocked. No database,
+SQL execution, container, provisioning, installation or teardown occurred.
+
+Offline checks: **32** harness static, **6** case design, **2** case contract,
+**3** teardown and **36** model tests passed. No PostgreSQL tests were run.
+
+## Phase 9I-E follow-up: partial bootstrap and case wiring (2026-11-19)
+
+Added an [unapplied bootstrap template](../prototypes/synthetic_pg_transaction_harness/BOOTSTRAP_TEMPLATE.md) for a bootstrap-owned marker and per-case fixture/maintenance roles. The unapplied schema guard now checks derived database/role names, role existence/flags and direct memberships. Test setup maps its method to a case, then refuses through `require_case`; the pure case observation comparator does not establish independent evidence. The existing runner still assumes fixture database ownership, the non-owner owner-impersonation/bootstrap workflow and one-use verifier are unimplemented, and separate maintenance execution remains absent. **Non-owner integration is incomplete and PostgreSQL execution remains blocked.** The teardown comparator remains advisory, without authenticated observations, protected record enforcement or deletion.
+
+Offline tests: harness static **32**, case design **6**, case contract **2**, teardown comparator **3**, model **36** passed. No database case, connection, SQL execution, container, provisioning, installation or teardown was run. Review the proposed grants, PUBLIC/default privileges, ownership, runtime isolation and maintenance's direct UPDATE/DELETE bypass before any separately authorized execution.
+
 ## Phase 9I-I: partial SQL transition, integration blocked (2026-11-19)
 
 The unapplied schema now expects a bootstrap-owned marker with case ordinal and

@@ -7,6 +7,21 @@ class Refused(ValueError):
     pass
 
 
+def validate_precreated_case(case, observation):
+    """Compare externally obtained metadata only; never authenticate its source."""
+    if not isinstance(case,Case) or type(observation) is not dict:
+        raise Refused('Case observation required')
+    expected={'nonce':case.nonce,'ordinal':case.ordinal,'database':case.database,
+              'owner':case.owner,'fixture':case.fixture,'maintenance':case.maintenance,
+              'marker_count':1,'state':'UNUSED','memberships':0,'unexpected_objects':0,
+              'nonowner_objects':0,'fixture_prohibited_privileges':0}
+    if set(observation)!=set(expected): raise Refused('Complete case observation required')
+    for key,value in expected.items():
+        if type(observation[key]) is not type(value) or observation[key]!=value:
+            raise Refused('Case observation mismatch')
+    return 'REVIEW_ONLY_NOT_A_VERIFIED_CASE'
+
+
 @dataclass(frozen=True)
 class Case:
     nonce: str
