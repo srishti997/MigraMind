@@ -2,7 +2,7 @@
 import ast
 from pathlib import Path
 import unittest
-from case_design import Case, Refused, propose_case, review_maintenance
+from case_design import Case, Refused, propose_case, review_maintenance, validate_precreated_case
 
 
 class CaseDesignTests(unittest.TestCase):
@@ -37,6 +37,20 @@ class CaseDesignTests(unittest.TestCase):
                 review_maintenance(self.case,self.expected,self.expected,self.assertions|{key:False})
         with self.assertRaises(Refused):review_maintenance(self.case,self.expected|{'maintenance':self.case.fixture},self.expected,self.assertions)
 
+    def test_case_observation_refuses_owner_privilege_and_partial_mismatch(self):
+        c=self.case
+        observed=dict(nonce=c.nonce,ordinal=c.ordinal,database=c.database,owner=c.owner,fixture=c.fixture,
+            maintenance=c.maintenance,marker_count=1,state='UNUSED',memberships=0,unexpected_objects=0,
+            nonowner_objects=0,fixture_prohibited_privileges=0)
+        self.assertEqual(validate_precreated_case(c,observed),'REVIEW_ONLY_NOT_A_VERIFIED_CASE')
+        for key in observed:
+            with self.subTest(key=key),self.assertRaises(Refused):
+                validate_precreated_case(c,{k:v for k,v in observed.items() if k!=key})
+        for key in ('memberships','unexpected_objects','nonowner_objects','fixture_prohibited_privileges'):
+            with self.subTest(key=key),self.assertRaises(Refused):validate_precreated_case(c,observed|{key:1})
+        for state in ('USED','PARTIAL','UNKNOWN'):
+            with self.assertRaises(Refused):validate_precreated_case(c,observed|{'state':state})
+
     def test_interface_has_no_io(self):
         tree=ast.parse(Path(__file__).with_name('case_design.py').read_text(encoding='utf-8'))
         for node in ast.walk(tree):
@@ -45,11 +59,11 @@ class CaseDesignTests(unittest.TestCase):
             if isinstance(node,ast.Call) and isinstance(node.func,ast.Name):
                 self.assertNotIn(node.func.id,('open','exec','eval','__import__','compile'))
 
-    def test_legacy_ownership_is_still_incompatible_and_execution_blocked(self):
+    def test_nonowner_identity_shape_and_execution_blocked(self):
         root=Path(__file__).parent
         sql=(root/'schema.sql').read_text(encoding='utf-8')
         source=(root/'harness.py').read_text(encoding='utf-8')
         self.assertIn('IS DISTINCT FROM current_user',sql)
-        self.assertIn("expected = (target.database, target.role, target.role, target.role",source)
+        self.assertIn("expected = (target.database, target.role, target.role, target.owner",source)
         self.assertIn('EXECUTION_BLOCKED = True',source)
         self.assertIn("if EXECUTION_BLOCKED: raise SafetyError",source)

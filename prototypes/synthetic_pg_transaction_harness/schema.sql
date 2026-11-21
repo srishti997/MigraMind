@@ -20,13 +20,19 @@ BEGIN
      OR m.case_ordinal IS NULL OR m.case_ordinal NOT BETWEEN 1 AND 17
      OR m.classification IS DISTINCT FROM 'SYNTHETIC_ONLY_DISPOSABLE' OR m.synthetic_only IS DISTINCT FROM true
      OR m.db_name IS DISTINCT FROM current_database() OR m.owner_name IS DISTINCT FROM current_user
+     OR m.db_name IS DISTINCT FROM 'mm_case_' || m.nonce || '_' || lpad(m.case_ordinal::text,3,'0')
+     OR m.owner_name IS DISTINCT FROM 'mm_owner_' || m.nonce
+     OR m.fixture_role IS DISTINCT FROM 'mm_fixture_' || m.nonce || '_' || lpad(m.case_ordinal::text,3,'0')
+     OR m.maintenance_role IS DISTINCT FROM 'mm_maint_' || m.nonce || '_' || lpad(m.case_ordinal::text,3,'0')
      OR m.fixture_role IS NULL OR m.maintenance_role IS NULL
      OR m.fixture_role IN (current_user,m.maintenance_role) OR m.maintenance_role=current_user
      OR m.schema_tag IS DISTINCT FROM 'migramind-throttle-harness-v1' THEN
     RAISE EXCEPTION 'Synthetic marker guard rejected';
   END IF;
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname IN (m.fixture_role,m.maintenance_role)
-             AND (rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls)) THEN
+  IF (SELECT count(*) FROM pg_catalog.pg_roles WHERE rolname IN (m.fixture_role,m.maintenance_role)
+      AND rolcanlogin AND NOT (rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls)) <> 2
+     OR EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members am JOIN pg_catalog.pg_roles r ON r.oid=am.member
+                WHERE r.rolname IN (m.fixture_role,m.maintenance_role)) THEN
     RAISE EXCEPTION 'Privileged role refused';
   END IF;
 END

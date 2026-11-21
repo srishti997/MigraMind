@@ -1,5 +1,19 @@
 # Phase 2: release readiness
 
+## Phase 9I-E subsequent update: non-owner identity shape (2026-11-21)
+
+Dormant target and identity comparisons now distinguish the bootstrap owner from
+per-case fixture and maintenance identities. The manifest/case registry and
+independent verification remain incomplete, `require_case` refuses all tests,
+and PostgreSQL execution remains blocked. Offline tests passed: **32** harness,
+**6** case design, **2** contract, **3** teardown and **36** model. No database
+connection, SQL execution, container, provisioning, installation or teardown
+occurred. [Details](SHARED_AUTH_THROTTLING_PLAN.md#phase-9i-e-subsequent-update-dormant-non-owner-identity-2026-11-21).
+
+## Phase 9I-E follow-up: bootstrap template, still blocked (2026-11-19)
+
+An [unapplied bootstrap template](../prototypes/synthetic_pg_transaction_harness/BOOTSTRAP_TEMPLATE.md) and fail-closed case selection were prepared. The legacy runner remains fixture-owner based and independently authenticated one-use case verification and separate maintenance execution do not exist. PostgreSQL execution is still blocked; this is not a completed non-owner harness. Offline tests passed: **32** harness, **6** case design, **2** contract, **3** teardown, **36** model. No database connection, SQL execution, container, provisioning, installation or teardown occurred. [Details](SHARED_AUTH_THROTTLING_PLAN.md#phase-9i-e-follow-up-partial-bootstrap-and-case-wiring-2026-11-19).
+
 ## Phase 9I-I: partial non-owner SQL transition — blocked (2026-11-19)
 
 Unapplied SQL now uses explicit marker nonce and a bootstrap-owner guard, but the
