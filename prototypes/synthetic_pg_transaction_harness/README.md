@@ -1,5 +1,9 @@
 # Disposable PostgreSQL transaction harness — Stage A preparation
 
+## Phase 9I-M: proposed supervised procedure
+
+The [supervised procedure and checklists](NON_OWNER_DESIGN.md#phase-9i-m-proposed-supervised-single-use-procedure-2026-11-22) propose replacing the custom claim controller with a manually supervised single-use batch. This **relaxes durable authenticated one-use issuance**: human supervision cannot enforce replay prevention across crashes or concurrent operators. The change requires explicit separate threat-model approval. The harness is not implemented for this procedure, `EXECUTION_BLOCKED` remains true, and no setup, execution or teardown is authorized.
+
 ## Phase 9I-L: batch claim trust boundary
 
 The [bounded controller review](NON_OWNER_DESIGN.md#phase-9i-l-exclusive-batch-controller-trust-review-2026-11-21) specifies a controller-only, ACL-protected local SQLite metadata store with a durable atomic whole-batch claim before credentials, distinct OS identities and independently authenticated maintenance confirmation. This is a design only: the store, controller and channels do not exist, and no SQLite or PostgreSQL operation was performed. Crash or uncertainty abandons the batch. Host integrity and non-rollbackable state remain trust limits; `EXECUTION_BLOCKED` remains true.

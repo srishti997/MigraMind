@@ -1,5 +1,9 @@
 # Phase 2: release readiness
 
+## Phase 9I-M: supervised PostgreSQL test proposal — no-go (2026-11-22)
+
+The [manual single-use procedure](../prototypes/synthetic_pg_transaction_harness/NON_OWNER_DESIGN.md#phase-9i-m-proposed-supervised-single-use-procedure-2026-11-22) proposes replacing the custom claim controller for 17 disposable synthetic cases. This explicitly relaxes durable authenticated one-use issuance; human supervision cannot guarantee replay or concurrent-run exclusion. Separate approval of that threat model and maintenance UPDATE/DELETE bypass risk, independently verified disposable isolation, implementation review, execution and teardown remain required. The current runner, bootstrap and maintenance handoff are incomplete; PostgreSQL execution remains blocked. No database, SQL, container, provisioning, installation or teardown was performed.
+
 ## Phase 9I-E subsequent update: non-owner identity shape (2026-11-21)
 
 Dormant target and identity comparisons now distinguish the bootstrap owner from
