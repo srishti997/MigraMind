@@ -1,5 +1,96 @@
 # Phase 9I-D non-owner fixture and teardown design v1
 
+## Phase 9I-M: proposed supervised single-use procedure (2026-11-22)
+
+**Proposed relaxation, not an equivalent one-use guarantee and not execution
+approval.** This proposal replaces the Phase 9I-L custom SQLite-backed claim
+controller for one supervised synthetic batch. It gives up durable authenticated
+at-most-once issuance and automated replay/concurrent-run exclusion. A manually
+kept record and supervision can reduce accidental reuse but cannot enforce it
+against a second operator, copied credentials, lost records, host compromise,
+restart or coordinated rollback. No non-rollbackable trust root is provided.
+Acceptance of this changed threat model requires explicit separate review and
+approval before implementation or execution. `EXECUTION_BLOCKED` stays true.
+
+### Proposed procedure for later approval
+
+1. A bootstrap operator, independently of the test and teardown operators, records
+   a fresh run nonce, image digest/version and intended fixed mapping of all 17
+   test names to distinct case ordinals, database names and fixture/maintenance
+   roles. Using a separately approved procedure, create exactly one new disposable
+   container and private, newly created volume on a dedicated loopback-only high
+   port; never reuse an existing instance, volume, role, database or data directory.
+   Record the full container ID, image digest, volume ID, port and timestamps.
+2. Bootstrap creates the 17 fresh databases and marker/fixture objects under the
+   bootstrap owner, with unique restricted non-owner fixture and maintenance roles
+   per case. Fixture grants exclude ownership, CREATE, TRUNCATE and windows DELETE;
+   maintenance has only reviewed cleanup grants and its credentials never enter
+   the fixture runner. The current bootstrap file is a non-executable template,
+   not a ready-to-run setup procedure.
+3. An independent verifier compares actual runtime observations with the recorded
+   full container ID, image/version, loopback address/port, mount source and volume
+   ownership/attachments. Using separate read-only authority on that dedicated
+   target, compare the full 17-case inventory, marker and control nonce, owner,
+   generation/writer, table/function/index ownership, effective direct/inherited
+   and PUBLIC/default privileges, memberships, role flags, extensions and
+   unexpected objects to the approved mapping. Refuse incomplete visibility,
+   unexpected attachments, cross-case access, privilege/identity mismatches or
+   unverified time/freshness. Runtime/catalog observations are evidence of observed
+   values; independent human attestation of a new synthetic-only instance and
+   trustworthy time/freshness is still required and is not proof of freshness.
+4. One supervised test operator uses the fixed record, marks the entire batch
+   consumed before the first credential is issued, then runs each mapped test at
+   most once with only that case's fixture credential. Maintain a separate human
+   witness and a case/result log without secrets; do not distribute bootstrap,
+   maintenance or teardown credentials to the fixture. Human marks are an audit
+   aid, **not** an atomic, authenticated or durable replay-prevention mechanism.
+   If supervision, exclusive access, mapping, identity, result or transaction
+   outcome is ambiguous, stop and abandon the entire batch. Never reuse a case,
+   resume the batch or retry an unknown commit. A later run needs newly verified
+   resources and separate approval.
+5. For each of the three cleanup cases, a separately authorized maintenance
+   operator verifies exact case/marker, generation/writer and actual time and
+   freshness, then independently approves the bounded operation and returns a
+   case-bound result or sanitized SQLSTATE. Negative tests may inject a false
+   synthetic argument only after real evidence passes. Stop the batch if the
+   approval, operation or confirmation is ambiguous. Maintenance UPDATE/DELETE
+   can bypass cleanup's policy entirely; accepting that risk for a verified
+   disposable synthetic instance requires explicit review and establishes no
+   production cleanup, clock-continuity or recovery security.
+6. A separate teardown authority, only with separate approval, rechecks exact
+   recorded container/volume IDs, ownership, attachments and lifecycle evidence
+   immediately before removing the owned disposable resources. Missing, changed
+   or ambiguous evidence means no deletion; interrupted or partially created
+   resources require separate manual review. No removal commands are supplied or
+   executed here; manual observations remain subject to host/runtime races.
+
+### Minimum implementation checklist — not yet approved for execution
+
+- [ ] Replace remaining legacy target/manifest behavior with exact, independently
+  verified per-case selection and owner/role/marker/control comparisons. Current
+  `require_case` refuses, and the run manifest does not select case ordinals.
+- [ ] Finalize bootstrap-owned schema/marker template and verify that SQL guards,
+  explicit control nonce, names and 17-case mapping agree. The `NOLOGIN` owner
+  bootstrap workflow, role/default/PUBLIC privileges, function signatures and
+  complete object inventory need independent review and PostgreSQL validation.
+- [ ] Adapt the runner for a fixed supervised batch without runner DDL, reset,
+  TRUNCATE, fixture DELETE, retries or credentials outside its assigned fixture.
+  Do not weaken any of the 17 assertions. Implement separate maintenance handoff
+  for the three cleanup tests without providing its credentials to the runner.
+- [ ] Add offline refusal, case uniqueness and handoff tests; document and review
+  the platform-specific supervision and privilege-verification procedure. A human
+  checklist cannot be described as authenticated one-use acquisition.
+
+### Separate execution-approval checklist — currently NO-GO
+
+Obtain explicit approval of the relaxed one-use threat model and maintenance
+bypass risk, the exact fresh disposable container/volume and reviewed software,
+bootstrap and fixture privileges, the 17-case mapping, independent verification,
+supervision and failure handling. Separately approve the maintenance operations
+and eventual teardown. Confirm all unresolved implementation/review items above
+are closed. No SQL, container, installation, test execution or deletion is
+authorized by this offline proposal.
+
 ## Phase 9I-L: exclusive batch controller trust review (2026-11-21)
 
 **Design decision, not an implementation or authorization.** For this bounded
