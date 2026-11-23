@@ -20,6 +20,52 @@ BACKEND = ROOT / 'backend'
 FRONTEND = ROOT / 'frontend'
 
 
+def restart_target_spec(temp_root, run_id, database_path, marker, *, existing_target, symlinked):
+    """Offline validation for a proposed fresh synthetic restart target.
+
+    Inputs are observations, not proof of directory ownership or safe cleanup.
+    No file is opened, created, migrated or deleted by this function.
+    """
+    if not isinstance(run_id, str) or re.fullmatch(r'[0-9a-f]{32}', run_id) is None:
+        raise ValueError('Synthetic run identifier required')
+    if type(existing_target) is not bool or type(symlinked) is not bool:
+        raise ValueError('Explicit target observations required')
+    if existing_target or symlinked:
+        raise ValueError('Existing or linked target refused')
+    base, candidate = Path(temp_root), Path(database_path)
+    expected_dir = base / ('migramind-restart-' + run_id)
+    expected_db = expected_dir / ('synthetic-' + run_id + '.sqlite')
+    if not base.is_absolute() or base.resolve() != Path(tempfile.gettempdir()).resolve() or candidate != expected_db:
+        raise ValueError('Exact temporary synthetic target required')
+    if marker != {'classification':'SYNTHETIC_RESTART_ONLY', 'run_id':run_id}:
+        raise ValueError('Synthetic ownership marker required')
+    return 'REVIEW_ONLY_NOT_AUTHORIZATION'
+
+
+def restart_environment(base_environment, database_path, api_port, frontend_port):
+    """Construct a restricted child environment; does not run any process."""
+    if (type(api_port) is not int or type(frontend_port) is not int
+            or api_port == frontend_port or not all(1024 <= p <= 65535 for p in (api_port, frontend_port))):
+        raise ValueError('Distinct explicit local ports required')
+    candidate = Path(database_path)
+    match = re.fullmatch(r'synthetic-([0-9a-f]{32})\.sqlite', candidate.name)
+    if (not candidate.is_absolute() or match is None
+            or candidate.parent.name != 'migramind-restart-' + match.group(1)
+            or candidate.parent.parent.resolve() != Path(tempfile.gettempdir()).resolve()):
+        raise ValueError('Exact temporary synthetic database path required')
+    allow = {'SYSTEMROOT','WINDIR','PATH','COMSPEC','PATHEXT','SYSTEMDRIVE',
+             'PROCESSOR_ARCHITECTURE','NUMBER_OF_PROCESSORS','TEMP','TMP'}
+    env = {key:value for key,value in base_environment.items() if key.upper() in allow}
+    env.update(APP_ENV='development', DATA_MODE='local',
+               DATABASE_URL='sqlite:///' + Path(database_path).as_posix(),
+               PYTHON_DOTENV_DISABLED='1', PYTHONDONTWRITEBYTECODE='1',
+               CORS_ORIGINS=f'http://127.0.0.1:{frontend_port}', ALLOWED_HOSTS='127.0.0.1',
+               VITE_API_URL='', VITE_DATA_MODE='local',
+               MIGRAMIND_API_PROXY=f'http://127.0.0.1:{api_port}',
+               MIGRAMIND_E2E_BASE_URL=f'http://127.0.0.1:{frontend_port}')
+    return env
+
+
 def require_free_ports(ports):
     for port in ports:
         with socket.socket() as sock:
