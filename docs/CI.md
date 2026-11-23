@@ -1,5 +1,26 @@
 # Continuous integration
 
+## Phase 1A: restart regression preparation — incomplete
+
+`ci_browser.py` now has pure helpers for reviewing an exact nonce-derived
+temporary SQLite target and building a restricted loopback child environment.
+They are **not connected to a regression runner**, do not inspect or prove
+ownership, and do not authorize migrations, server startup or cleanup. The
+existing helper's inherited-environment and automatic temporary-directory
+cleanup behavior is unchanged. No full-stack restart regression is prepared or
+approved for execution yet.
+
+The required future regression must exercise registration, login, episode
+create/display/edit/delete, invalid input, logout/session invalidation and
+database persistence across an actual backend restart using fictional data.
+Before execution, independently review exclusive target creation, marker/path
+and process ownership, port-race handling, environment isolation, migration
+scope, failure diagnostics and fail-closed cleanup. Separately approve the exact
+synthetic execution. Do not point raw Playwright or Alembic at an existing service
+or database.
+
+Offline checks only: `python -B -m unittest discover -s scripts -p test_restart_safety.py -v`.
+
 The [GitHub Actions workflow](../.github/workflows/ci.yml) runs on pull requests
 and pushes to `main`. It uses GitHub-hosted Ubuntu 24.04 runners, Python 3.13 and
 Node 22, matching the runtime families documented in the README. Patch releases
