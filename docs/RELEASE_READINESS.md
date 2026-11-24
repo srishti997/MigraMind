@@ -962,6 +962,18 @@ The built-demo suite can be run only while this **new isolated fixture** is serv
 - Public deployment, PostgreSQL/TLS/roles, backups/recovery, monitoring and independent security review remain separate unapproved work.
 - No real health-data/research/clinical release until the existing governance and validation gates are independently met.
 - Review this candidate's documentation/test diff and rerun its added browser test in GitHub if publication is later authorized. No publication action is part of this phase.
+# Phase 2D synthetic version-aware backup evidence
+
+The isolated prototype exercised actual Alembic upgrades to 009 and 010, and
+authenticated revision-bound recovery including 009-to-010 migration on a new
+staging copy. Six new checks and the prior 45 backup checks passed. A synthetic
+post-backup account deletion demonstrated resurrection on old-backup recovery;
+activation remains blocked and no authoritative deletion reconciliation exists.
+Alembic comparison reported FLOAT versus model DOUBLE for two wellness columns.
+Migration parity, real-data handling, deletion reconciliation, durable storage,
+key custody and independent security review remain release gates. This prototype
+does not integrate with the application or protect against manual file copying.
+
 # Phase 2C synthetic application-model backup evidence
 
 The offline synthetic exercise under `prototypes/synthetic_encrypted_backup/`

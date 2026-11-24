@@ -13,12 +13,18 @@ if os.name != 'nt':
     site = candidates[0]
 if not site.is_dir(): raise SystemExit('Existing backend dependencies unavailable')
 allowed = {'PATH', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP', 'TMPDIR'}
-env = {k: v for k, v in os.environ.items() if k.upper() in allowed}
+env = {k: os.environ[k] for k in allowed if k in os.environ}
 env.update(DATABASE_URL='sqlite://', APP_ENV='development', DATA_MODE='local',
            MIGRAMIND_SYNTHETIC_SCHEMA_TEST='isolated-model-exercise')
-launch = ('import sys,runpy; sys.path.insert(0,sys.argv[3]); sys.path.insert(0,sys.argv[1]); '
-          'sys.path.insert(0,sys.argv[2]); sys.argv=sys.argv[:1]; '
-          'runpy.run_module("application_schema_tests",run_name="__main__",alter_sys=True)')
-result = subprocess.run([sys.executable, '-I', '-B', '-c', launch, str(prototype),
-                         str(root / 'backend'), str(site)], env=env, timeout=120)
-raise SystemExit(result.returncode)
+def run(module='application_schema_tests'):
+    if module not in ('application_schema_tests', 'versioned_tests'):
+        raise ValueError('Unknown synthetic test module')
+    launch = ('import sys,runpy; sys.path.insert(0,sys.argv[3]); sys.path.insert(0,sys.argv[1]); '
+              'sys.path.insert(0,sys.argv[2]); module=sys.argv[4]; sys.argv=sys.argv[:1]; '
+              'runpy.run_module(module,run_name="__main__",alter_sys=True)')
+    result = subprocess.run([sys.executable, '-I', '-B', '-c', launch, str(prototype),
+                             str(root / 'backend'), str(site), module], env=env, timeout=120)
+    return result.returncode
+
+if __name__ == '__main__':
+    raise SystemExit(run())

@@ -251,6 +251,28 @@ print('Synthetic-only file round-trip/refusal/corruption checks passed:', root)
 
 This subset does **not** set private ACLs or establish encrypted backup/storage. For permission reproduction, use a new empty fixture directory and the platform's reviewed ACL/mode procedure; on Windows inspect a protected current-SID/SYSTEM DACL and inherited child before data creation, and stop on the recorded privilege error rather than enabling privileges. See [Microsoft Set-Acl](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/set-acl?view=powershell-7.5). On approved non-root Linux, apply `0700` directory / `0600` fixture and test a separate `0400` fixture with ordinary write; never use these instructions recursively on an existing location. Other-user denial still needs a separately approved identity test, not real credentials supplied to this agent.
 
+## Phase 2D synthetic version-aware recovery
+
+The synthetic backup exercise builds new SQLite fixtures with the actual Alembic
+chain through 009 and 010, using a programmatically bound temporary engine rather
+than the repository's default database URL. Its authenticated schema field binds
+the archive to the Alembic revision; missing, unknown and inconsistent revisions
+are refused. A 009 copy is upgraded to 010 only after authentication and fixture
+validation, in a separately created staging database. Sessions are removed, and
+the test confirms rejection of a corresponding synthetic credential after upgrade.
+The versioned reader intentionally refuses the older unversioned exercise formats;
+their existing readers remain unchanged.
+
+Comparison of migrated 010 against models identified two Alembic `modify_type`
+differences: wellness `sleep_hours` and `screen_hours`, reflected as FLOAT versus
+model DOUBLE. This is a limited comparison, not full schema equivalence proof.
+A synthetic deletion after backup demonstrated that recovery can resurrect the
+deleted account and episode. No authoritative deletion history or reconciliation
+is provided. All recovered copies report activation blocked; this is a prototype
+contract rather than protection against manual file copying. Real deployment also
+requires independently reviewed migration paths, deletion reconciliation, key
+custody, access controls, durable storage and session invalidation.
+
 ## Phase 2C application-model synthetic recovery
 
 An isolated test creates current SQLAlchemy metadata and fictional relational

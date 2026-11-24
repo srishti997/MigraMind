@@ -22,18 +22,20 @@ with patch('dotenv.load_dotenv', return_value=False):
         SupportPreferences, SupportFeedback, app, auth, db, engine as import_engine)
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
-from app.auth import hasher
+from argon2.low_level import hash_secret, Type
 import recoverable_sqlite as backup
 
 STAMP = '2025-01-02T12:00:00+00:00'
 COOKIE = 'synthetic-session-token'
 CSRF = 'synthetic-csrf-token'
 PASSWORD = 'Synthetic-password-123'
-PASSWORD_HASH = hasher.hash(PASSWORD)
+# Deterministic synthetic fixture only; never use a fixed salt for real accounts.
+PASSWORD_HASH = hash_secret(PASSWORD.encode(), b'synthetic-salt-1', 3, 65536, 2, 32, Type.ID).decode()
 
 
-def seed(engine):
-    Base.metadata.create_all(engine)
+def seed(engine, create_schema=True, include_session=True):
+    if create_schema:
+        Base.metadata.create_all(engine)
     with sessionmaker(bind=engine)() as s:
         s.add_all([User(id=i, email=f'synthetic-{i}@example.test', display_name=f'Synthetic {i}',
                        password_hash=PASSWORD_HASH, created_at=STAMP) for i in (1, 2)])
@@ -50,8 +52,9 @@ def seed(engine):
         s.flush()
         s.add_all([CheckinRevision(id=1, owner_id=1, checkin_id=1, revision=1, action='create', recorded_at=STAMP, values={'synthetic': True}),
                    SupportPreferences(id=1, owner_id=1, preferred_contact_id=1),
-                   SupportFeedback(id=1, owner_id=1, session_id=1, action_id='support_card', helpful=True, created_at=STAMP),
-                   LoginSession(id=1, user_id=1, token_digest=__import__('hashlib').sha256(COOKIE.encode()).hexdigest(), csrf_token=CSRF, expires_at='2099-01-01T00:00:00+00:00')])
+                   SupportFeedback(id=1, owner_id=1, session_id=1, action_id='support_card', helpful=True, created_at=STAMP)])
+        if include_session:
+            s.add(LoginSession(id=1, user_id=1, token_digest=__import__('hashlib').sha256(COOKIE.encode()).hexdigest(), csrf_token=CSRF, expires_at='2099-01-01T00:00:00+00:00'))
         s.commit()
 
 

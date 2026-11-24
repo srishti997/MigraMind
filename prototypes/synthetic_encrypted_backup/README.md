@@ -1,5 +1,64 @@
 # Synthetic authenticated-backup experiment
 
+## Phase 2D: synthetic Alembic-versioned recovery
+
+`versioned_exercise.py` creates exclusively new, internally named SQLite files
+and runs the repository Alembic revisions through 009 or 010 using an in-memory
+Alembic configuration and an engine bound to those files. It does not read
+`alembic.ini` or use its application database URL. It checks file identity and
+uses SQLite `mode=rw` before opening; these checks do not defeat a hostile actor
+able to replace files between checks and opens. The Phase 2C launcher still
+blocks dotenv loading and restricts the child environment.
+
+The existing AES-GCM envelope's authenticated `schema` field identifies the
+synthetic Alembic revision. This reader only accepts 009 and 010 and checks the
+authenticated value against `alembic_version`, the migration-created schema,
+integrity, foreign keys and exact synthetic fixture rows. Metadata is bounded
+and any untrusted version is used only to choose an allowlisted parser before
+authentication. The older Phase 2B/2C formats are unchanged and remain readable
+by their original readers; this versioned reader deliberately refuses them
+because they have no authenticated Alembic revision. Other historical or newer
+revisions are unsupported.
+
+Revision 010 restores without migration. Revision 009 is authenticated and
+validated first, then upgraded to 010 in a new isolated staging database; the
+original source is not upgraded. Failures discard the stage and publication uses
+a no-overwrite hard link. The fixture's login sessions are removed before
+encryption; an in-process API test rejects a stored synthetic session after the
+009-to-010 migration. No automatic application activation exists: both restore
+results explicitly say `activation_allowed: false`, and older copies remain
+quarantined because deletion reconciliation is not established. This status is
+a prototype contract, not an access-control barrier against someone manually
+copying a SQLite file.
+
+The synthetic deletion test backs up, subsequently deletes a fictional account
+and its episode from the source, and confirms both reappear in the old backup.
+It does not treat that test's knowledge as an authoritative deletion ledger.
+
+Alembic autogenerate comparison on a newly migrated 010 database reported two
+type differences: `wellness.sleep_hours` and `wellness.screen_hours` are
+reflected as `FLOAT`, while the models specify `DOUBLE`. SQLite affinity and
+Alembic comparison do not by themselves establish semantic incompatibility or
+complete schema equivalence. Alembic's SQLite batch recreation can produce the
+same two `support_feedback` constraints in different order; fixture validation
+normalizes only that exact ordering. No other migration paths or dialects were
+validated.
+
+Run with the existing dependencies described below:
+
+```text
+python -I -B prototypes/synthetic_encrypted_backup/run_versioned_tests.py
+python -I -B prototypes/synthetic_encrypted_backup/run_app_schema_tests.py
+python -I -B -m unittest discover -s prototypes/synthetic_encrypted_backup -p "test*.py" -v
+```
+
+The Phase 2D run passed six new and all 45 prior tests, with Alembic 1.20.0;
+the other dependency versions are as recorded under Phase 2C. TestClient emitted
+a Starlette/httpx deprecation warning. Plaintext synthetic temporary databases,
+best-effort cleanup, limited filesystem-race protection, lack of crash durability,
+real deletion reconciliation, migration policy and key custody remain blockers.
+This is not production-ready recovery or a general-purpose backup tool.
+
 ## Phase 2C: application-model synthetic exercise
 
 `application_schema_exercise.py` subclasses the Phase 2B envelope, KDF,
