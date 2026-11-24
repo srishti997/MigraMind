@@ -82,6 +82,7 @@ nav button { min-height: 48px; padding: 12px; display: flex; gap: 12px; align-it
 nav button:hover, .icon:hover { background: var(--secondary); }
 nav button.active { background: var(--secondary); color: var(--text); font-weight: 650; }
 .nav-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); margin-left: auto; }
+.mobile-menu-toggle { display: none; }
 .sidebar-bottom { margin-top: auto; padding-top: 40px; }
 .privacy { display: flex; gap: 10px; padding: 16px 4px 24px; font-size: 12px; color: var(--text); }
 .privacy p { font-size: 11px; color: var(--muted-readable); margin-top: 4px; }
@@ -218,6 +219,8 @@ textarea { resize: vertical; }
   aside { position: relative; width: 100%; height: auto; overflow: visible; padding: 20px 16px 16px; border-right: 0; border-bottom: 1px solid var(--border); }
   .brand { font-size: 25px; }
   .tagline, .nav-label, .sidebar-bottom { display: none; }
+  .mobile-menu-toggle { display: inline-flex; margin-top: 12px; }
+  .main-navigation[data-open='false'] { display: none; }
   nav { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 6px; margin-top: 20px; }
   nav button { font-size: 12px; line-height: 1.4; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 10px 5px; min-height: 68px; overflow-wrap: anywhere; }
   nav button svg { width: 19px; }
