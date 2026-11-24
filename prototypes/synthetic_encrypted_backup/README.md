@@ -1,5 +1,49 @@
 # Synthetic authenticated-backup experiment
 
+## Phase 2B: passphrase recovery of synthetic SQLite
+
+`recoverable_sqlite.py` adds a separate exercise, without changing the Phase 2A
+ephemeral-key format. It creates its own WAL database with fixed fictional users,
+episodes, symptoms, triggers and a synthetic session. SQLite's backup API copies
+committed state; the copy's sessions are removed before encryption, and its
+standalone image is checked for integrity, foreign keys, object names and exact
+fixture records. This is a representative demonstration schema, not the app's
+schema or a production session-revocation mechanism.
+
+Each backup derives an AES-256-GCM key from a caller-provided 16–128 byte
+synthetic passphrase using PyCA scrypt (N=16384, r=8, p=1, 32-byte key), with
+independently generated 16-byte salt and 12-byte nonce. Versioned canonical
+metadata, including KDF parameters, salt and nonce, is authenticated as associated
+data. The parser accepts only the fixed parameters and bounded input sizes before
+derivation, then authenticates and validates the image before writing. Recovery
+uses a fresh, internally created temporary directory and publishes by hard link;
+an existing destination is never overwritten. The tests include recovery in a
+new Python process after source closure, with the synthetic passphrase delivered
+via a pipe rather than command arguments or a file.
+
+The passphrase and derived key are not deliberately persisted or logged; Python
+and native memory cannot guarantee zeroization. Losing the passphrase makes the
+backup unrecoverable. A weak passphrase permits offline guessing: the test's
+random bytes are not a human password policy. Independent key custody, recovery
+procedures, access controls and a reviewed KDF policy are required for real use.
+Temporary snapshot, staging and restored files contain plaintext synthetic data;
+cleanup is best effort, not secure deletion, and crash/power-loss durability,
+hostile same-user access and cross-platform hard-link support are not established.
+The encrypted bytes have no durable storage or user-facing backup interface.
+No real data, app database or existing backup path is accepted or accessed.
+
+Run the synthetic checks with installed dependencies:
+
+```text
+python -I -B -m unittest discover -s prototypes/synthetic_encrypted_backup -p "test*.py" -v
+```
+
+Application integration requires a separate reviewed design for actual schema
+and migration compatibility, authenticated account isolation, active-session
+invalidation, deletion reconciliation, encrypted storage and key custody,
+recovery UX, filesystem permissions and durability, plus real-world WAL and
+failure testing. This prototype is not production-ready recovery.
+
 ## Phase 2A: synthetic SQLite/WAL exercise
 
 [`sqlite_exercise.py`](sqlite_exercise.py) is a separate, synthetic-only exercise;
