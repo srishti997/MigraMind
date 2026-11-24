@@ -1,5 +1,51 @@
 # Synthetic authenticated-backup experiment
 
+## Phase 2A: synthetic SQLite/WAL exercise
+
+[`sqlite_exercise.py`](sqlite_exercise.py) is a separate, synthetic-only exercise;
+it creates its own fresh temporary SQLite source, fictional rows, ephemeral key,
+and fixed backup/restore paths. It accepts **no input paths or CLI arguments**,
+does not import the app, and cannot back up an existing MigraMind database. The
+original JSON exercise described below remains unchanged.
+
+The source is kept open in WAL mode with auto-checkpoint disabled. SQLite's online
+`Connection.backup` creates a consistent copy including committed WAL state. The
+exercise changes **only the copied snapshot** to DELETE journal mode so it can be
+validated as a standalone file; source journal mode remains WAL. A synthetic
+plaintext snapshot exists briefly in the newly created temporary directory before
+encryption and is removed best-effort. AES-256-GCM with a fresh ephemeral key and
+nonce authenticates the SQLite bytes and synthetic metadata; strict metadata,
+same-exercise identity and snapshot hash are checked after authentication.
+The decrypted snapshot is deserialized and checked for integrity, expected object
+shape and exact generated rows before a staging file is created. Publication uses
+`os.link` for a new-only destination, with no overwrite fallback; unsupported hard
+links fail closed. Temporary plaintext staging and recovered SQLite exist inside
+the exercise directory until cleanup. No secure erasure is claimed.
+
+Run using an already available compatible Python/cryptography environment:
+
+```text
+python -I -B -m unittest discover -s prototypes/synthetic_encrypted_backup -p test_sqlite_exercise.py -v
+python -I -B prototypes/synthetic_encrypted_backup/sqlite_exercise.py
+```
+
+The 2026-11-24 run used existing **cryptography 46.0.3** and SQLite 3.51.0, not
+the prototype's pinned 50.0.2; no dependency was installed or changed. Eight
+initial SQLite tests contained six errors caused by a WAL-header image not being
+openable via in-memory deserialization; that was fixed by normalizing the copy.
+An initial isolated CLI smoke test also failed because Python `-I` omitted the
+script directory; the import was corrected. The final expanded **12 SQLite tests**,
+original **19 JSON tests**, and isolated CLI passed. These are synthetic checks,
+not evidence for all SQLite configurations or real application backups.
+
+The key is not persisted or reliably zeroized; the output is intentionally not
+recoverable after context exit. There is no key recovery, app/schema migration,
+real user input, durable backup, retention, crash/power-loss durability, concurrent
+writer stress, authenticated human identity, filesystem-adversary or production
+guarantee. WAL is tested with one committed and one uncommitted synthetic writer,
+not exhaustive concurrency. Same-user code can access private Python attributes.
+The existing release and real-data storage gates remain open.
+
 **Not a MigraMind backup tool.** No SQLite, app imports, input files, key files,
 browser storage or user paths. Python **3.10+**; separate dependencies in this
 directory only. Production requirements/locks are unchanged.

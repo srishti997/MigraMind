@@ -1,5 +1,37 @@
 # Phase 6: data protection and backup security plan
 
+## Phase 2A: isolated synthetic SQLite snapshot exercise (2026-11-24)
+
+Added [`sqlite_exercise.py`](../prototypes/synthetic_encrypted_backup/sqlite_exercise.py)
+and [synthetic tests](../prototypes/synthetic_encrypted_backup/test_sqlite_exercise.py).
+The exercise creates its own new WAL-mode source with fictional records, uses
+SQLite's online backup API to capture a standalone synthetic snapshot, normalizes
+the copy to DELETE journal mode, encrypts with fresh in-memory AES-256-GCM key and
+nonce, validates authenticated metadata and database integrity/rows, and publishes
+only to a new fixed synthetic restore target with no overwrite fallback. It uses no
+application input, existing database, real records, migration, persistent key or
+application integration. Plaintext source, snapshot and restore exist in its own
+temporary directory; cleanup is not secure deletion.
+
+Final evidence: **12 SQLite tests passed**, **19 prior JSON tests passed**, and
+the isolated synthetic CLI completed. SQLite 3.51.0 and existing cryptography
+46.0.3 were used; this is not a test of pinned 50.0.2. No install occurred.
+An initial 8-test run had six errors: the WAL-header backup image could not be
+validated after in-memory deserialization. The copy is now normalized before
+serialization. The first `-I` CLI smoke also failed because the script directory
+was absent from the import path; this was corrected and rerun. The WAL test checks
+committed rows and exclusion of a separate uncommitted transaction, plus a later
+commit not appearing in the snapshot. No concurrent stress or power-failure test
+was run. Wrong key, corruption, truncation, existing target, publication race,
+injected failure and interruption are tested with newly generated fixtures.
+
+This does **not** close SP4-01 or provide a real backup/restore feature, durable
+key custody, encrypted application storage, authenticated operator provenance,
+production disaster recovery, retention/erasure reconciliation or secure deletion.
+Any application integration requires separate design, threat-model review and
+authorization, and synthetic SQLite/WAL, key recovery, no-clobber, migrations,
+session revocation and full restore testing before handling real data.
+
 ## Approved synthetic-only encrypted prototype follow-up (2026-11-10)
 
 The user separately approved this narrow implementation on `security/data-protection` at **`07ae0b1`**, with merged PR #20 and only the existing Phase 6 plan/release edits present. Those earlier edits are preserved below. **New encryption occurs only on generated fictional JSON inside isolated temporary exercises.** No existing user data file, SQLite/WAL/SHM, backup/export, browser storage, health record or secret was accessed. Application code/configuration, production locks, migrations, OS encryption settings and cloud infrastructure were not changed. No existing environment was installed into. This does not implement the local adoption or hosting designs below.
