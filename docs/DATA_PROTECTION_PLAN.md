@@ -251,6 +251,26 @@ print('Synthetic-only file round-trip/refusal/corruption checks passed:', root)
 
 This subset does **not** set private ACLs or establish encrypted backup/storage. For permission reproduction, use a new empty fixture directory and the platform's reviewed ACL/mode procedure; on Windows inspect a protected current-SID/SYSTEM DACL and inherited child before data creation, and stop on the recorded privilege error rather than enabling privileges. See [Microsoft Set-Acl](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/set-acl?view=powershell-7.5). On approved non-root Linux, apply `0700` directory / `0600` fixture and test a separate `0400` fixture with ordinary write; never use these instructions recursively on an existing location. Other-user denial still needs a separately approved identity test, not real credentials supplied to this agent.
 
+## Phase 2C application-model synthetic recovery
+
+An isolated test creates current SQLAlchemy metadata and fictional relational
+fixtures, then uses the existing Phase 2B authenticated passphrase backup to
+restore into a fresh target. It compares schema and all rows with a generated
+fixture, checks SQLite integrity and foreign keys, and tests the actual in-process
+API's rejection of an old synthetic login session and per-account episode access.
+The copied login-session table is cleared before encryption. This validates a
+current-model synthetic case only: `create_all` does not stamp or exercise
+Alembic migrations or prove compatibility of an older database. The application
+was imported with dotenv loading suppressed and an in-memory default engine; API
+requests used an override to the fresh synthetic restored database.
+
+Restoring an older backup can reintroduce an account or records deleted after the
+backup. Session removal alone does not reconcile those deletions. No deletion
+ledger or replay mechanism is implemented here. Review and implement deletion
+reconciliation, real-schema migration and version policy, session revocation,
+key custody, access control, file protection and durability before real-data use.
+Temporary plaintext files and best-effort cleanup remain limitations.
+
 ## Phase 2B synthetic passphrase recovery
 
 The isolated `prototypes/synthetic_encrypted_backup/recoverable_sqlite.py`

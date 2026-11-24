@@ -1,5 +1,54 @@
 # Synthetic authenticated-backup experiment
 
+## Phase 2C: application-model synthetic exercise
+
+`application_schema_exercise.py` subclasses the Phase 2B envelope, KDF,
+authentication and no-overwrite publisher. It creates a fresh WAL database from
+the application's current SQLAlchemy metadata and populates two fictional users,
+episodes (with JSON symptoms and trigger text), wellness, early symptoms, daily
+check-in and revision, profile, contact, support preferences, attack session,
+feedback and a synthetic login session. Other tables are created but unpopulated.
+Only a generated database inside a fresh temporary directory is accepted; no
+caller-selected input database or restore path is used. The copied snapshot's
+login sessions are deleted with SQLite secure-delete enabled and the copy is
+vacuumed; this is not secure erasure of source files or filesystem remnants.
+
+The image is authenticated before validation, and its SQLite schema and every
+table's rows are compared with a newly generated model-based synthetic fixture;
+integrity and foreign keys are checked. This strict fixture-specific check is not
+a general application backup format. An in-process API check confirms the old
+synthetic session is rejected and newly issued fixture sessions see only their
+own episodes. No application process restart or real credentials are tested.
+
+Run using existing system Python with cryptography and an existing backend
+`.venv` with app dependencies, without installing packages:
+
+```text
+python -I -B prototypes/synthetic_encrypted_backup/run_app_schema_tests.py
+python -I -B -m unittest discover -s prototypes/synthetic_encrypted_backup -p "test*.py" -v
+```
+
+The launcher restricts the child environment, forces the import-time app engine
+to in-memory SQLite, suppresses dotenv loading and uses dependency overrides for
+API requests. It combines already-installed system and backend environment
+packages for this test; other platforms need a compatible existing Python and
+backend environment. Do not pass application database settings. Current-model
+`create_all` is not an Alembic migration: there is no `alembic_version` in the
+fixture, no historical-version upgrade or migration parity was tested. Inspect
+and migrate a future approved isolated restore before any real integration.
+
+The Phase 2C run passed six application-schema tests and all 39 pre-existing
+backup tests. It used Python 3.13.11, SQLite 3.51.0, cryptography 46.0.3,
+SQLAlchemy 2.1.5, FastAPI 0.146.0, HTTPX 0.28.1 and Starlette 1.9.0. The
+installed TestClient emitted a Starlette/httpx deprecation warning.
+
+An older backup can reintroduce deleted accounts, sessions or records. This test
+removes login sessions, but provides no deletion ledger, tombstones or other
+reconciliation of later account deletion. Production recovery needs separately
+designed deletion reconciliation, migration policy, session invalidation, key
+custody, isolation, safe storage and durability testing. Plaintext synthetic
+snapshots and restore files exist temporarily. No secure-erasure claim applies.
+
 ## Phase 2B: passphrase recovery of synthetic SQLite
 
 `recoverable_sqlite.py` adds a separate exercise, without changing the Phase 2A

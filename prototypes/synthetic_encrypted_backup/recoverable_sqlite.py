@@ -52,6 +52,9 @@ def _inspect(raw):
 
 class SyntheticBackup:
     """Creates its own source and a recoverable encrypted byte string."""
+    _schema = 'synthetic-relational/1'
+    _session_table = 'sessions'
+    _inspect = staticmethod(_inspect)
     def __enter__(self):
         self._temp=tempfile.TemporaryDirectory(prefix='migramind-recoverable-source-')
         self._root=Path(self._temp.name);self._source=None
@@ -94,13 +97,15 @@ class SyntheticBackup:
         try:
             with closing(sqlite3.connect(path)) as snapshot:
                 self._source.backup(snapshot)
-                snapshot.execute('DELETE FROM sessions');snapshot.commit()
+                snapshot.execute('PRAGMA secure_delete=ON')
+                snapshot.execute('DELETE FROM ' + self._session_table);snapshot.commit()
                 if snapshot.execute('PRAGMA journal_mode=DELETE').fetchone()[0].lower()!='delete':raise ValueError()
-            raw=path.read_bytes();_inspect(raw)
+                snapshot.execute('VACUUM')
+            raw=path.read_bytes();self._inspect(raw)
         finally:
             path.unlink(missing_ok=True)
         salt=os.urandom(16);nonce=os.urandom(12)
-        metadata=_canonical({'classification':'SYNTHETIC_ONLY','schema':'synthetic-relational/1',
+        metadata=_canonical({'classification':'SYNTHETIC_ONLY','schema':self._schema,
             'kdf':'scrypt','n':N,'r':R,'p':P,'salt':salt.hex(),'nonce':nonce.hex(),
             'cipher':'AES-256-GCM','sessions':'excluded'})
         aad=MAGIC+bytes([VERSION])+len(metadata).to_bytes(2,'big')+metadata
@@ -109,6 +114,8 @@ class SyntheticBackup:
 
 class SyntheticRecovery:
     """A new context with a fixed fresh target; no input or destination paths."""
+    _schema = 'synthetic-relational/1'
+    _inspect = staticmethod(_inspect)
     def __enter__(self):
         self._temp=tempfile.TemporaryDirectory(prefix='migramind-recoverable-restore-')
         self._root=Path(self._temp.name)
@@ -135,13 +142,13 @@ class SyntheticRecovery:
             encoded=blob[offset+3:end];metadata=_json(encoded)
             if type(metadata) is not dict or set(metadata)!={'classification','schema','kdf','n','r','p','salt','nonce','cipher','sessions'}:raise ValueError()
             if any(type(metadata[k]) is not int for k in ('n','r','p')):raise ValueError()
-            expected={'classification':'SYNTHETIC_ONLY','schema':'synthetic-relational/1',
+            expected={'classification':'SYNTHETIC_ONLY','schema':self._schema,
                 'kdf':'scrypt','n':N,'r':R,'p':P,'cipher':'AES-256-GCM','sessions':'excluded'}
             if any(metadata[k]!=v for k,v in expected.items()) or _canonical(metadata)!=encoded:raise ValueError()
             salt=bytes.fromhex(metadata['salt']);nonce=bytes.fromhex(metadata['nonce'])
             if len(salt)!=16 or len(nonce)!=12 or metadata['salt']!=salt.hex() or metadata['nonce']!=nonce.hex():raise ValueError()
             raw=AESGCM(_key(passphrase,salt)).decrypt(nonce,blob[end:],blob[:end])
-            _inspect(raw)
+            self._inspect(raw)
             return raw
         except (InvalidTag,ValueError,TypeError,KeyError,UnicodeError,OverflowError,RecursionError,sqlite3.Error):
             raise RejectedBackup('Synthetic backup rejected') from None

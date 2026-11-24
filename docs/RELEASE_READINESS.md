@@ -962,3 +962,15 @@ The built-demo suite can be run only while this **new isolated fixture** is serv
 - Public deployment, PostgreSQL/TLS/roles, backups/recovery, monitoring and independent security review remain separate unapproved work.
 - No real health-data/research/clinical release until the existing governance and validation gates are independently met.
 - Review this candidate's documentation/test diff and rerun its added browser test in GitHub if publication is later authorized. No publication action is part of this phase.
+# Phase 2C synthetic application-model backup evidence
+
+The offline synthetic exercise under `prototypes/synthetic_encrypted_backup/`
+creates current SQLAlchemy tables and fictional records, encrypts a SQLite backup,
+and checks restored schema, rows, foreign keys, old-session rejection and
+cross-account episode isolation through in-process application fixtures. It uses
+an isolated import environment and only fresh temporary databases. It does not
+exercise Alembic migrations, prove historical-schema compatibility, or integrate
+backup into the application. Restoring old backups can resurrect deleted data;
+no account-deletion reconciliation exists in this exercise. Key custody, safe
+real-data handling, durability and independent security review remain release
+gates. See the prototype README and data protection plan for exact limits.
