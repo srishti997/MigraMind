@@ -42,10 +42,15 @@ test('tracking forms, calendar and export use synthetic records',async({page})=>
  // Move to the recorded month, independent of the browser's current month.
  const target=new Date(2026,9,1),now=new Date();const months=(now.getFullYear()-target.getFullYear())*12+now.getMonth()-target.getMonth();
  for(let i=0;i<Math.abs(months);i++)await page.getByRole('button',{name:months>0?'Previous month':'Next month'}).click();
- await page.getByRole('button',{name:'2026-10-19: 2 episodes, 1 wellness check-ins',exact:true}).click();
+ const selectedDay=page.getByRole('button',{name:'2026-10-19: 2 episodes, 1 wellness check-ins',exact:true});
+ await expect(selectedDay).toHaveAccessibleDescription(/Highest recorded pain 3 of 10/);
+ await selectedDay.click();await expect(selectedDay).toHaveAttribute('aria-pressed','true');
  await expect(page.locator('.entries .entry')).toHaveCount(2);await expect(page.getByText('Wellness · 2026-10-19')).toBeVisible();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.screenshot({path:'test-results/tracking-calendar-mobile.png',fullPage:true});
+ const currentMonth=await page.evaluate(()=>new Date().toLocaleString('en',{month:'long',year:'numeric'}));
+ await page.getByRole('button',{name:'This month',exact:true}).click();
+ await expect(page.getByRole('heading',{name:currentMonth,exact:true})).toBeVisible();
  await navigate(page,'Settings');const downloadPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Export my records (JSON)'}).click();const download=await downloadPromise;expect(download.suggestedFilename()).toBe('migramind-records.json');
  await navigate(page,'Early symptoms');page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Delete observation'}).click();await expect(page.getByText('No early symptom observations yet.')).toBeVisible();
 });
