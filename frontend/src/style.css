@@ -82,7 +82,6 @@ nav button { min-height: 48px; padding: 12px; display: flex; gap: 12px; align-it
 nav button:hover, .icon:hover { background: var(--secondary); }
 nav button.active { background: var(--secondary); color: var(--text); font-weight: 650; }
 .nav-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); margin-left: auto; }
-.mobile-menu-toggle { display: none; }
 .sidebar-bottom { margin-top: auto; padding-top: 40px; }
 .privacy { display: flex; gap: 10px; padding: 16px 4px 24px; font-size: 12px; color: var(--text); }
 .privacy p { font-size: 11px; color: var(--muted-readable); margin-top: 4px; }
@@ -97,6 +96,7 @@ header { min-height: 88px; border-bottom: 1px solid var(--border); padding: 16px
 .theme-control { display: flex; flex-direction: row; align-items: center; gap: 10px; margin: 0; font-size: 12px; color: var(--muted-readable); }
 .theme-control select { width: auto; min-height: 44px; padding: 8px 28px 8px 12px; font-size: 13px; }
 .mode-button, .secondary { display: inline-flex; justify-content: center; align-items: center; gap: 8px; min-height: 44px; border: 1px solid var(--control-border); background: var(--surface); border-radius: var(--radius-sm); padding: 10px 15px; color: var(--text); font-size: 13px; }
+.mobile-menu-toggle { display: none; }
 main { max-width: 1370px; min-width: 0; margin: auto; padding: 36px var(--space) 24px; }
 .page-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 24px; margin-bottom: 32px; }
 .page-heading > div { min-width: 0; }

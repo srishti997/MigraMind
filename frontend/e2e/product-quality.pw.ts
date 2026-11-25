@@ -82,6 +82,19 @@ test('desktop navigation remains visible without a mobile menu',async({page})=>{
  await navigate(page,'Migraine diary',true);
  await expect(page.getByRole('heading',{name:'Migraine diary',exact:true})).toBeFocused();
  await expect(page.getByRole('navigation',{name:'Main navigation'})).toBeVisible();
+ await page.setViewportSize({width:760,height:850});
+ const menu=page.getByRole('button',{name:'Menu',exact:true});
+ await expect(menu).toBeVisible();await expect(menu).toHaveAttribute('aria-expanded','false');
+ await expect(page.locator('#main-navigation')).toBeHidden();
+ await navigate(page,'Daily status',true);
+ await expect(page.getByRole('heading',{name:'Daily status',exact:true})).toBeFocused();
+ await expect(page.locator('#main-navigation')).toBeHidden();
+ await page.setViewportSize({width:761,height:850});
+ await expect(page.locator('.mobile-menu-toggle')).toBeHidden();
+ await expect(page.getByRole('navigation',{name:'Main navigation'})).toBeVisible();
+ await page.setViewportSize({width:760,height:850});
+ await expect(menu).toBeVisible();await expect(menu).toHaveAttribute('aria-expanded','false');
+ await expect(page.locator('#main-navigation')).toBeHidden();
 });
 
 test('all workspace destinations retain keyboard focus, landmarks and named controls',async({page})=>{
