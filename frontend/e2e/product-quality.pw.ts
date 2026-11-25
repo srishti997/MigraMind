@@ -1,3 +1,4 @@
+import {navigate,openNavigation,focusWithKeyboard} from './navigation';
 import {test,expect} from '@playwright/test';
 test.beforeEach(async({page})=>{
  await page.route('**/api/**',route=>{
@@ -36,7 +37,7 @@ test('skip link and semantic controls support keyboard navigation without upload
   return !el.textContent?.trim()&&!el.getAttribute('aria-label')&&!el.getAttribute('aria-labelledby')&&!(el as HTMLInputElement).labels?.length;
  }).map(node=>node.outerHTML));
  expect(missing).toEqual([]);
- await page.getByRole('navigation').getByRole('button',{name:'Insights',exact:true}).click();
+ await navigate(page,'Insights');
  await expect(page.getByRole('heading',{name:'Insights',exact:true})).toBeFocused();
  for(const theme of ['dark','warm']){
   await page.getByLabel('Color theme').selectOption(theme);
@@ -55,17 +56,57 @@ test('skip link and semantic controls support keyboard navigation without upload
  }
 });
 
+test('mobile menu opens by keyboard, closes after navigation, and reopens',async({page})=>{
+ await page.setViewportSize({width:320,height:850});await page.goto('/');
+ await expect(page.getByRole('heading',{name:'Explore the synthetic demonstration'})).toBeVisible();
+ const menu=page.getByRole('button',{name:'Menu',exact:true});
+ const nav=page.locator('#main-navigation');
+ await expect(menu).toHaveAttribute('aria-expanded','false');await expect(nav).toBeHidden();
+ await focusWithKeyboard(page,menu,'Tab');await page.keyboard.press('Enter');
+ await expect(page.getByRole('button',{name:'Close menu'})).toHaveAttribute('aria-expanded','true');
+ await expect(page.getByRole('navigation',{name:'Main navigation'})).toBeVisible();
+ await focusWithKeyboard(page,page.getByRole('button',{name:'Migraine diary',exact:true}),'Tab');await page.keyboard.press('Enter');
+ await expect(page.getByRole('heading',{name:'Migraine diary',exact:true})).toBeFocused();
+ await expect(menu).toHaveAttribute('aria-expanded','false');await expect(nav).toBeHidden();
+ await focusWithKeyboard(page,menu,'Shift+Tab');await page.keyboard.press('Enter');
+ await focusWithKeyboard(page,page.getByRole('button',{name:'Insights',exact:true}),'Tab');await page.keyboard.press('Enter');
+ await expect(page.getByRole('heading',{name:'Insights',exact:true})).toBeFocused();
+ await expect(menu).toHaveAttribute('aria-expanded','false');await expect(nav).toBeHidden();
+});
+
+test('desktop navigation remains visible without a mobile menu',async({page})=>{
+ await page.setViewportSize({width:1280,height:850});await page.goto('/');
+ await expect(page.getByRole('heading',{name:'Explore the synthetic demonstration'})).toBeVisible();
+ await expect(page.getByRole('navigation',{name:'Main navigation'})).toBeVisible();
+ await expect(page.locator('.mobile-menu-toggle')).toBeHidden();
+ await navigate(page,'Migraine diary',true);
+ await expect(page.getByRole('heading',{name:'Migraine diary',exact:true})).toBeFocused();
+ await expect(page.getByRole('navigation',{name:'Main navigation'})).toBeVisible();
+ await page.setViewportSize({width:760,height:850});
+ const menu=page.getByRole('button',{name:'Menu',exact:true});
+ await expect(menu).toBeVisible();await expect(menu).toHaveAttribute('aria-expanded','false');
+ await expect(page.locator('#main-navigation')).toBeHidden();
+ await navigate(page,'Daily status',true);
+ await expect(page.getByRole('heading',{name:'Daily status',exact:true})).toBeFocused();
+ await expect(page.locator('#main-navigation')).toBeHidden();
+ await page.setViewportSize({width:761,height:850});
+ await expect(page.locator('.mobile-menu-toggle')).toBeHidden();
+ await expect(page.getByRole('navigation',{name:'Main navigation'})).toBeVisible();
+ await page.setViewportSize({width:760,height:850});
+ await expect(menu).toBeVisible();await expect(menu).toHaveAttribute('aria-expanded','false');
+ await expect(page.locator('#main-navigation')).toBeHidden();
+});
+
 test('all workspace destinations retain keyboard focus, landmarks and named controls',async({page})=>{
  const destinations=['Daily status','Migraine diary','Calendar','Insights','Wellness','Early symptoms','Trusted contacts','Caregiver profile','Support feedback','Settings','Account','Overview'];
  const writes:string[]=[];
  page.on('request',request=>{if(['POST','PUT','PATCH','DELETE'].includes(request.method()))writes.push(request.url())});
  for(const width of [320,1280]){
   await page.setViewportSize({width,height:850});await page.goto('/');
-  const navigation=page.getByRole('navigation',{name:'Main navigation'});
-  await expect(navigation).toBeVisible();
+  await openNavigation(page,true);
   for(const name of destinations){
-   const destination=navigation.getByRole('button',{name,exact:true});
-   await destination.focus();await page.keyboard.press('Enter');
+   await navigate(page,name,true);
+   const destination=page.locator('#main-navigation').getByRole('button',{name,exact:true,includeHidden:true});
    await expect(destination).toHaveAttribute('aria-current','page');
    await expect(page.getByRole('main')).toHaveCount(1);
    const heading=page.locator('#page-content h1');

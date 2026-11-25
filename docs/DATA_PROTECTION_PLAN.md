@@ -251,6 +251,71 @@ print('Synthetic-only file round-trip/refusal/corruption checks passed:', root)
 
 This subset does **not** set private ACLs or establish encrypted backup/storage. For permission reproduction, use a new empty fixture directory and the platform's reviewed ACL/mode procedure; on Windows inspect a protected current-SID/SYSTEM DACL and inherited child before data creation, and stop on the recorded privilege error rather than enabling privileges. See [Microsoft Set-Acl](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/set-acl?view=powershell-7.5). On approved non-root Linux, apply `0700` directory / `0600` fixture and test a separate `0400` fixture with ordinary write; never use these instructions recursively on an existing location. Other-user denial still needs a separately approved identity test, not real credentials supplied to this agent.
 
+## Phase 2D synthetic version-aware recovery
+
+The synthetic backup exercise builds new SQLite fixtures with the actual Alembic
+chain through 009 and 010, using a programmatically bound temporary engine rather
+than the repository's default database URL. Its authenticated schema field binds
+the archive to the Alembic revision; missing, unknown and inconsistent revisions
+are refused. A 009 copy is upgraded to 010 only after authentication and fixture
+validation, in a separately created staging database. Sessions are removed, and
+the test confirms rejection of a corresponding synthetic credential after upgrade.
+The versioned reader intentionally refuses the older unversioned exercise formats;
+their existing readers remain unchanged.
+
+Comparison of migrated 010 against models identified two Alembic `modify_type`
+differences: wellness `sleep_hours` and `screen_hours`, reflected as FLOAT versus
+model DOUBLE. This is a limited comparison, not full schema equivalence proof.
+A synthetic deletion after backup demonstrated that recovery can resurrect the
+deleted account and episode. No authoritative deletion history or reconciliation
+is provided. All recovered copies report activation blocked; this is a prototype
+contract rather than protection against manual file copying. Real deployment also
+requires independently reviewed migration paths, deletion reconciliation, key
+custody, access controls, durable storage and session invalidation.
+
+## Phase 2C application-model synthetic recovery
+
+An isolated test creates current SQLAlchemy metadata and fictional relational
+fixtures, then uses the existing Phase 2B authenticated passphrase backup to
+restore into a fresh target. It compares schema and all rows with a generated
+fixture, checks SQLite integrity and foreign keys, and tests the actual in-process
+API's rejection of an old synthetic login session and per-account episode access.
+The copied login-session table is cleared before encryption. This validates a
+current-model synthetic case only: `create_all` does not stamp or exercise
+Alembic migrations or prove compatibility of an older database. The application
+was imported with dotenv loading suppressed and an in-memory default engine; API
+requests used an override to the fresh synthetic restored database.
+
+Restoring an older backup can reintroduce an account or records deleted after the
+backup. Session removal alone does not reconcile those deletions. No deletion
+ledger or replay mechanism is implemented here. Review and implement deletion
+reconciliation, real-schema migration and version policy, session revocation,
+key custody, access control, file protection and durability before real-data use.
+Temporary plaintext files and best-effort cleanup remain limitations.
+
+## Phase 2B synthetic passphrase recovery
+
+The isolated `prototypes/synthetic_encrypted_backup/recoverable_sqlite.py`
+exercise uses SQLite's online backup API on its own generated WAL database,
+removes fictional sessions from the copy, and authenticates a versioned synthetic
+envelope with AES-256-GCM and a key derived by scrypt from a test passphrase.
+Random salts and nonces are independently generated; KDF parameters are fixed
+and checked before derivation. A fresh process can recover the exact fictional
+relational records using the passphrase, without the original derived key.
+Restore creates a new temporary target and refuses overwrite. This does not
+integrate with the application or establish recovery of its real schema.
+
+Passphrase loss means permanent loss of this backup; human passphrase entropy,
+offline guessing resistance, recovery custody and rotation need separate design.
+Passphrases and derived keys are not deliberately logged or saved; Python memory
+cannot be reliably zeroized. Plaintext synthetic snapshots and restore files
+exist temporarily, cleanup is best effort, and no secure erasure or crash/power
+durability is established. Synthetic session omission does not prove live
+session invalidation or deletion reconciliation. Real integration remains gated
+on reviewed key custody, authorization, schema compatibility, storage and
+filesystem protections, durability, restore validation and independent security
+and privacy review. See the prototype README for scope and test commands.
+
 ## Recovery, rollback and incident procedure - proposed, not executed
 
 1. Stop/fence the affected runtime and shared/export paths on suspected exposure, corruption, failed authenticity, wrong key or unknown source. Preserve minimal restricted metadata; never copy raw health records into tickets/logs for troubleshooting.

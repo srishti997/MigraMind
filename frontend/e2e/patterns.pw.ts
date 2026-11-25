@@ -1,3 +1,4 @@
+import {navigate} from './navigation';
 import {test,expect} from '@playwright/test';
 import {patternFixture} from '../test-fixtures/patterns';
 test.beforeEach(async({page})=>{
@@ -12,7 +13,7 @@ test.beforeEach(async({page})=>{
 });
 test('sparse and supported descriptive insights are readable on mobile and keyboard accessible',async({page})=>{
  await page.setViewportSize({width:320,height:800});await page.emulateMedia({reducedMotion:'reduce'});await page.goto('/');
- await page.getByRole('navigation').getByRole('button',{name:'Insights',exact:true}).click();
+ await navigate(page,'Insights');
  await expect(page.getByRole('heading',{name:'Not enough information yet'})).toBeVisible();
  await expect(page.getByText(/0 onset days and 0 explicitly episode-free days/)).toBeVisible();
  await page.getByLabel('Reporting timezone').selectOption('UTC');await page.getByLabel('Reporting window').selectOption('90');
@@ -32,7 +33,7 @@ test('timezone display preserves offsets during the repeated DST hour',async({pa
   const data=patternFixture(true,'America/New_York');data.timeline[0].at='2026-11-01T05:30:00Z';data.timeline[1].at='2026-11-01T06:15:00Z';data.timeline[0].hours_before=0.75;
   return route.fulfill({json:data});
  });
- await page.goto('/');await page.getByRole('navigation').getByRole('button',{name:'Insights',exact:true}).click();
+ await page.goto('/');await navigate(page,'Insights');
  await page.getByLabel('Reporting timezone').selectOption('America/New_York');await page.getByText('View timed symptoms and attacks',{exact:true}).click();
  await expect(page.getByRole('cell',{name:/01:30 AM EDT/})).toBeVisible();await expect(page.getByRole('cell',{name:/01:15 AM EST/})).toBeVisible();
 });
@@ -42,7 +43,7 @@ test('wellness editing preserves the recorded timezone and requires an explicit 
  let saved:any=null;
  await page.route('**/api/wellness',route=>route.fulfill({json:[entry]}));
  await page.route('**/api/wellness/7',route=>{saved=route.request().postDataJSON();return route.fulfill({json:{...entry,...saved}})});
- await page.goto('/');await page.getByRole('navigation').getByRole('button',{name:'Wellness',exact:true}).click();
+ await page.goto('/');await navigate(page,'Wellness');
  await page.getByRole('button',{name:'Edit check-in'}).click();
  const observation=page.getByRole('combobox',{name:/Whole-day episode observation/});
  await expect(observation).toHaveValue('');

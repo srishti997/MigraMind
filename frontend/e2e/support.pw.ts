@@ -1,3 +1,4 @@
+import {navigate} from './navigation';
 ﻿import {test,expect} from '@playwright/test';
 import {DEFAULT_PREFERENCES,fallbackRecommendations} from '../src/support';
 const contacts=[{id:1,name:'Jamie demo',relationship:'Friend',phone:'+12025550101'},{id:2,name:'Sam demo',relationship:'Partner',phone:'+12025550102'}];
@@ -28,7 +29,7 @@ test.beforeEach(async({page})=>{
 });
 test('saved support choices, active-session suppression and optional feedback lifecycle',async({page})=>{
  await page.setViewportSize({width:390,height:844});await page.goto('/');
- await page.getByRole('navigation').getByRole('button',{name:'Caregiver profile',exact:true}).click();
+ await navigate(page,'Caregiver profile');
  await page.getByLabel('Preferred trusted contact').selectOption('2');await page.getByLabel('Preferred contact method').selectOption('sms');
  await page.getByLabel('First support action').selectOption('prepare_sms');await page.getByLabel('Use my optional feedback to rank other support actions').check();
  await page.getByRole('button',{name:'Save support choices'}).click();await expect(page.getByText('Support choices saved. Nothing was shared.')).toBeVisible();
@@ -37,7 +38,7 @@ test('saved support choices, active-session suppression and optional feedback li
  await expect(page.getByRole('link',{name:/Emergency call/})).toBeInViewport();
  await page.getByRole('button',{name:'Start attack session'}).click();await expect(page.getByText(/Session active/)).toBeVisible();
  await expect(page.getByRole('button',{name:'Review support feedback'})).toHaveCount(0);
- await page.getByRole('button',{name:'Exit Attack Mode'}).click();await page.getByRole('navigation').getByRole('button',{name:'Support feedback',exact:true}).click();
+ await page.getByRole('button',{name:'Exit Attack Mode'}).click();await navigate(page,'Support feedback');
  await expect(page.getByText('Feedback can wait until your active attack session has ended.')).toBeVisible();
  await page.getByRole('button',{name:'Enter Attack Mode'}).click();await page.getByRole('button',{name:'Open my support card'}).click();
  await expect(page.getByText('Quiet, please',{exact:true})).toBeVisible();
@@ -50,7 +51,7 @@ test('saved support choices, active-session suppression and optional feedback li
 });
 test('sharing is reviewed and user initiated; large-text layout retains emergency access',async({page})=>{
  await page.setViewportSize({width:320,height:740});await page.emulateMedia({reducedMotion:'reduce'});await page.goto('/');
- await page.getByRole('navigation').getByRole('button',{name:'Caregiver profile',exact:true}).click();
+ await navigate(page,'Caregiver profile');
  await page.getByLabel('Larger text').check();await page.getByLabel('Reduce motion',{exact:true}).check();await page.getByLabel('Simplified Attack Mode').check();
  await page.getByRole('button',{name:'Save support choices'}).click();await expect(page.locator('html')).toHaveAttribute('data-large-text','true');
  await page.getByRole('button',{name:'Review card for sharing'}).click();

@@ -1,5 +1,157 @@
 # Synthetic authenticated-backup experiment
 
+## Phase 2D: synthetic Alembic-versioned recovery
+
+`versioned_exercise.py` creates exclusively new, internally named SQLite files
+and runs the repository Alembic revisions through 009 or 010 using an in-memory
+Alembic configuration and an engine bound to those files. It does not read
+`alembic.ini` or use its application database URL. It checks file identity and
+uses SQLite `mode=rw` before opening; these checks do not defeat a hostile actor
+able to replace files between checks and opens. The Phase 2C launcher still
+blocks dotenv loading and restricts the child environment.
+
+The existing AES-GCM envelope's authenticated `schema` field identifies the
+synthetic Alembic revision. This reader only accepts 009 and 010 and checks the
+authenticated value against `alembic_version`, the migration-created schema,
+integrity, foreign keys and exact synthetic fixture rows. Metadata is bounded
+and any untrusted version is used only to choose an allowlisted parser before
+authentication. The older Phase 2B/2C formats are unchanged and remain readable
+by their original readers; this versioned reader deliberately refuses them
+because they have no authenticated Alembic revision. Other historical or newer
+revisions are unsupported.
+
+Revision 010 restores without migration. Revision 009 is authenticated and
+validated first, then upgraded to 010 in a new isolated staging database; the
+original source is not upgraded. Failures discard the stage and publication uses
+a no-overwrite hard link. The fixture's login sessions are removed before
+encryption; an in-process API test rejects a stored synthetic session after the
+009-to-010 migration. No automatic application activation exists: both restore
+results explicitly say `activation_allowed: false`, and older copies remain
+quarantined because deletion reconciliation is not established. This status is
+a prototype contract, not an access-control barrier against someone manually
+copying a SQLite file.
+
+The synthetic deletion test backs up, subsequently deletes a fictional account
+and its episode from the source, and confirms both reappear in the old backup.
+It does not treat that test's knowledge as an authoritative deletion ledger.
+
+Alembic autogenerate comparison on a newly migrated 010 database reported two
+type differences: `wellness.sleep_hours` and `wellness.screen_hours` are
+reflected as `FLOAT`, while the models specify `DOUBLE`. SQLite affinity and
+Alembic comparison do not by themselves establish semantic incompatibility or
+complete schema equivalence. Alembic's SQLite batch recreation can produce the
+same two `support_feedback` constraints in different order; fixture validation
+normalizes only that exact ordering. No other migration paths or dialects were
+validated.
+
+Run with the existing dependencies described below:
+
+```text
+python -I -B prototypes/synthetic_encrypted_backup/run_versioned_tests.py
+python -I -B prototypes/synthetic_encrypted_backup/run_app_schema_tests.py
+python -I -B -m unittest discover -s prototypes/synthetic_encrypted_backup -p "test*.py" -v
+```
+
+The Phase 2D run passed six new and all 45 prior tests, with Alembic 1.20.0;
+the other dependency versions are as recorded under Phase 2C. TestClient emitted
+a Starlette/httpx deprecation warning. Plaintext synthetic temporary databases,
+best-effort cleanup, limited filesystem-race protection, lack of crash durability,
+real deletion reconciliation, migration policy and key custody remain blockers.
+This is not production-ready recovery or a general-purpose backup tool.
+
+## Phase 2C: application-model synthetic exercise
+
+`application_schema_exercise.py` subclasses the Phase 2B envelope, KDF,
+authentication and no-overwrite publisher. It creates a fresh WAL database from
+the application's current SQLAlchemy metadata and populates two fictional users,
+episodes (with JSON symptoms and trigger text), wellness, early symptoms, daily
+check-in and revision, profile, contact, support preferences, attack session,
+feedback and a synthetic login session. Other tables are created but unpopulated.
+Only a generated database inside a fresh temporary directory is accepted; no
+caller-selected input database or restore path is used. The copied snapshot's
+login sessions are deleted with SQLite secure-delete enabled and the copy is
+vacuumed; this is not secure erasure of source files or filesystem remnants.
+
+The image is authenticated before validation, and its SQLite schema and every
+table's rows are compared with a newly generated model-based synthetic fixture;
+integrity and foreign keys are checked. This strict fixture-specific check is not
+a general application backup format. An in-process API check confirms the old
+synthetic session is rejected and newly issued fixture sessions see only their
+own episodes. No application process restart or real credentials are tested.
+
+Run using existing system Python with cryptography and an existing backend
+`.venv` with app dependencies, without installing packages:
+
+```text
+python -I -B prototypes/synthetic_encrypted_backup/run_app_schema_tests.py
+python -I -B -m unittest discover -s prototypes/synthetic_encrypted_backup -p "test*.py" -v
+```
+
+The launcher restricts the child environment, forces the import-time app engine
+to in-memory SQLite, suppresses dotenv loading and uses dependency overrides for
+API requests. It combines already-installed system and backend environment
+packages for this test; other platforms need a compatible existing Python and
+backend environment. Do not pass application database settings. Current-model
+`create_all` is not an Alembic migration: there is no `alembic_version` in the
+fixture, no historical-version upgrade or migration parity was tested. Inspect
+and migrate a future approved isolated restore before any real integration.
+
+The Phase 2C run passed six application-schema tests and all 39 pre-existing
+backup tests. It used Python 3.13.11, SQLite 3.51.0, cryptography 46.0.3,
+SQLAlchemy 2.1.5, FastAPI 0.146.0, HTTPX 0.28.1 and Starlette 1.9.0. The
+installed TestClient emitted a Starlette/httpx deprecation warning.
+
+An older backup can reintroduce deleted accounts, sessions or records. This test
+removes login sessions, but provides no deletion ledger, tombstones or other
+reconciliation of later account deletion. Production recovery needs separately
+designed deletion reconciliation, migration policy, session invalidation, key
+custody, isolation, safe storage and durability testing. Plaintext synthetic
+snapshots and restore files exist temporarily. No secure-erasure claim applies.
+
+## Phase 2B: passphrase recovery of synthetic SQLite
+
+`recoverable_sqlite.py` adds a separate exercise, without changing the Phase 2A
+ephemeral-key format. It creates its own WAL database with fixed fictional users,
+episodes, symptoms, triggers and a synthetic session. SQLite's backup API copies
+committed state; the copy's sessions are removed before encryption, and its
+standalone image is checked for integrity, foreign keys, object names and exact
+fixture records. This is a representative demonstration schema, not the app's
+schema or a production session-revocation mechanism.
+
+Each backup derives an AES-256-GCM key from a caller-provided 16–128 byte
+synthetic passphrase using PyCA scrypt (N=16384, r=8, p=1, 32-byte key), with
+independently generated 16-byte salt and 12-byte nonce. Versioned canonical
+metadata, including KDF parameters, salt and nonce, is authenticated as associated
+data. The parser accepts only the fixed parameters and bounded input sizes before
+derivation, then authenticates and validates the image before writing. Recovery
+uses a fresh, internally created temporary directory and publishes by hard link;
+an existing destination is never overwritten. The tests include recovery in a
+new Python process after source closure, with the synthetic passphrase delivered
+via a pipe rather than command arguments or a file.
+
+The passphrase and derived key are not deliberately persisted or logged; Python
+and native memory cannot guarantee zeroization. Losing the passphrase makes the
+backup unrecoverable. A weak passphrase permits offline guessing: the test's
+random bytes are not a human password policy. Independent key custody, recovery
+procedures, access controls and a reviewed KDF policy are required for real use.
+Temporary snapshot, staging and restored files contain plaintext synthetic data;
+cleanup is best effort, not secure deletion, and crash/power-loss durability,
+hostile same-user access and cross-platform hard-link support are not established.
+The encrypted bytes have no durable storage or user-facing backup interface.
+No real data, app database or existing backup path is accepted or accessed.
+
+Run the synthetic checks with installed dependencies:
+
+```text
+python -I -B -m unittest discover -s prototypes/synthetic_encrypted_backup -p "test*.py" -v
+```
+
+Application integration requires a separate reviewed design for actual schema
+and migration compatibility, authenticated account isolation, active-session
+invalidation, deletion reconciliation, encrypted storage and key custody,
+recovery UX, filesystem permissions and durability, plus real-world WAL and
+failure testing. This prototype is not production-ready recovery.
+
 ## Phase 2A: synthetic SQLite/WAL exercise
 
 [`sqlite_exercise.py`](sqlite_exercise.py) is a separate, synthetic-only exercise;

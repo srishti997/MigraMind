@@ -1,3 +1,4 @@
+import {navigate} from './navigation';
 import {test,expect} from '@playwright/test';
 import {installManualAccessibilityFixture} from '../test-fixtures/manual-accessibility';
 
@@ -17,7 +18,7 @@ for(const outcome of ['cancel','success','failure'] as const){
    else await route.fulfill({status:400,json:{detail:'Password confirmation failed'}});
   });
   await page.goto('/');
-  await page.getByRole('navigation').getByRole('button',{name:'Account',exact:true}).click();
+  await navigate(page,'Account');
   const trigger=page.getByRole('button',{name:'Sign out all sessions',exact:true});
   await trigger.focus();await page.keyboard.press('Enter');
   const password=page.getByLabel('Confirm current password',{exact:true});

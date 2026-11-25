@@ -1,3 +1,4 @@
+import {navigate} from './navigation';
 import {test,expect} from '@playwright/test';
 const contacts=[{id:1,name:'Jamie Demo',relationship:'Partner',phone:'+919999900001'},{id:2,name:'Sam Demo',relationship:'Friend',phone:'+919999900002'}];
 const profile={name:'Alex',support:'Quiet space. '+ 'Synthetic support preference. '.repeat(20),avoid:'Bright light',communication:'Please text first.'};
@@ -13,7 +14,7 @@ test('responsive pages and attack assistance avoid horizontal overflow',async({p
  for(const width of [320,390,768,1280]){
   await page.setViewportSize({width,height:850});await page.goto('/');await expect(page.getByRole('heading',{name:'A gentler day, Alex.'})).toBeVisible();await expect(page.getByRole('heading',{name:/AI Insights/})).toBeVisible();await expect(page.getByText('Insufficient verified data for forecasting.')).toBeVisible();
   for(const name of ['Overview','Migraine diary','Calendar','Wellness','Early symptoms','Trusted contacts','Caregiver profile','Support feedback','Settings']){
-   await page.getByRole('navigation').getByRole('button',{name,exact:true}).click();
+   await navigate(page,name);
    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${name} at ${width}px`).toBe(true);
   }
   await page.getByRole('button',{name:'Enter Attack Mode'}).click();

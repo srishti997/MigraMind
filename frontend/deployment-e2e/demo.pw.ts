@@ -1,3 +1,4 @@
+import {navigate} from '../e2e/navigation';
 import {test,expect} from '@playwright/test';
 
 test('built demo refuses a backend that does not attest synthetic mode',async({page})=>{
@@ -48,7 +49,7 @@ test('read-only screens, keyboard destinations and recoverable failures stay usa
  await page.getByRole('button',{name:'Review research features',exact:true}).focus();
  await page.keyboard.press('Enter'); // Revisit while already on Overview.
  await expect(page.getByRole('heading',{name:'AI Insights — In Development',exact:true})).toBeFocused();
- await page.getByRole('navigation').getByRole('button',{name:'Caregiver profile',exact:true}).click();
+ await navigate(page,'Caregiver profile');
  await expect(page.getByLabel('What helps me feel supported')).toBeDisabled();
  await expect(page.getByRole('button',{name:'Save my preferences',exact:true})).toBeDisabled();
  await expect(page.getByRole('button',{name:'Save support choices',exact:true})).toBeDisabled();
@@ -60,7 +61,7 @@ test('read-only screens, keyboard destinations and recoverable failures stay usa
  for(const width of [320,768,1280]){
   await page.setViewportSize({width,height:850});
   for(const screen of screens){
-   await page.getByRole('navigation').getByRole('button',{name:screen,exact:true}).click();
+   await navigate(page,screen);
    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${screen} at ${width}px`).toBe(true);
   }
  }
@@ -92,7 +93,7 @@ test('built synthetic demonstration is clearly labelled and rejects health inges
  expect(before).toHaveLength(3);
  expect((await context.request.post('/api/episodes',{headers,data:{notes:'Synthetic blocked test input'}})).status()).toBe(403);
  expect((await context.request.post('/api/auth/register',{headers,data:{}})).status()).toBe(403);
- await page.getByRole('navigation').getByRole('button',{name:'Daily status',exact:true}).click();
+ await navigate(page,'Daily status');
  const writes:string[]=[];page.on('request',r=>{if(r.method()==='POST'&&r.url().includes('daily-checkins'))writes.push(r.url())});
  await expect(page.getByText('Read-only demonstration: explore the three January examples and their history below. Creating, correcting and deleting reports is unavailable.')).toBeVisible();
  await expect(page.getByRole('button',{name:'Save daily check-in'})).toHaveCount(0);
@@ -118,7 +119,7 @@ test('built synthetic demonstration is clearly labelled and rejects health inges
  const exported=await context.request.post('/api/v1/research-export',{headers,data:{...request,confirmed:true}});
  expect(exported.status()).toBe(200);expect((await exported.json()).synthetic_demo).toBe(true);
  const after=await (await context.request.get('/api/daily-checkins',{headers})).json();expect(after).toEqual(before);
- await page.getByRole('navigation').getByRole('button',{name:'Account',exact:true}).click();
+ await navigate(page,'Account');
  await expect(page.getByRole('button',{name:'Save account',exact:true})).toHaveCount(0);
  await expect(page.getByRole('button',{name:'Permanently delete my account',exact:true})).toHaveCount(0);
  await page.getByRole('button',{name:'Sign out',exact:true}).click();
