@@ -345,6 +345,13 @@ legend { padding: 0 6px; font-size: 14px; }
 .calendar .wellness-day { box-shadow: inset 0 -4px var(--primary); }
 .legend > .wellness-marker { background: var(--primary); border-color: var(--primary); border-radius: 2px; }
 .insights-section { margin-bottom: 28px; }
+.recorded-frequencies { margin-top: 20px; }
+.frequency-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 20px; }
+.frequency-grid h4 { margin: 8px 0; }
+.frequency-grid ul { margin: 0; padding: 0; list-style: none; }
+.frequency-grid li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.frequency-grid li span:last-child { flex-shrink: 0; }
+@media (max-width: 600px) { .frequency-grid { grid-template-columns: minmax(0,1fr); } }
 .insights-section .stats { grid-template-columns: repeat(2,minmax(0,1fr)); margin-bottom: 0; }
 .insights-section .stats b { font-size: clamp(21px,2.5vw,32px); letter-spacing: -.4px; }
 .insights-section .stats article:last-child { grid-column: auto; }

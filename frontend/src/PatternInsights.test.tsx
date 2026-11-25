@@ -36,6 +36,9 @@ test('timezone and window selection reloads user-scoped results and clears stale
  fireEvent.change(screen.getByLabelText('Reporting window'),{target:{value:'90'}});
  await screen.findByRole('heading',{name:'Descriptive records available'});
  expect(fetcher.mock.calls.at(-1)![0]).toContain('days=90');
+ fireEvent.change(screen.getByLabelText('Reporting window'),{target:{value:'7'}});
+ await screen.findByRole('heading',{name:'Descriptive records available'});
+ expect(fetcher.mock.calls.at(-1)![0]).toContain('days=7');
 });
 test('failed requests provide retry without invented insight values',async()=>{
  const fetcher=vi.spyOn(globalThis,'fetch').mockResolvedValueOnce(new Response('{}',{status:503}));render(<PatternInsights/>);
