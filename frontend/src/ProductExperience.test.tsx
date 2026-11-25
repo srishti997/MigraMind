@@ -104,3 +104,18 @@ test('deletion confirmation appears only after the delete succeeds',async()=>{
  expect(await screen.findByText('Record deleted.')).toHaveAttribute('role','status');
  expect(vi.mocked(api).mock.calls.filter(([path,method])=>path==='episodes/5'&&method==='DELETE')).toHaveLength(1);
 });
+
+test('episode suggestion selections reach the existing API payload',async()=>{
+ render(<App/>);
+ await screen.findByRole('heading',{name:'A gentler day, Synthetic.'});
+ fireEvent.click(screen.getByRole('button',{name:'Log an episode'}));
+ const dialog=screen.getByRole('dialog');
+ fireEvent.change(within(dialog).getByLabelText('Attack started'),{target:{value:'2024-01-02T10:00:00'}});
+ fireEvent.click(within(dialog).getByText('Optional details · now or later'));
+ fireEvent.click(within(dialog).getByRole('button',{name:'Nausea'}));
+ fireEvent.click(within(dialog).getByRole('button',{name:'Stress'}));
+ fireEvent.submit(dialog.querySelector('form')!);
+ await waitFor(()=>expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+ const request=vi.mocked(api).mock.calls.find(([path,method])=>path==='episodes'&&method==='POST');
+ expect(request?.[2]).toMatchObject({symptoms:['Nausea'],trigger:'Stress',severity:null});
+});
