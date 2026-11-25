@@ -1,3 +1,4 @@
+import {navigate} from './navigation';
 import {test,expect} from '@playwright/test';
 test('tracking forms, calendar and export use synthetic records',async({page})=>{
  await page.setViewportSize({width:390,height:844});
@@ -19,7 +20,7 @@ test('tracking forms, calendar and export use synthetic records',async({page})=>
   if(path==='/api/auth/session')data={user:{id:1,email:'synthetic@example.test',display_name:'Alex'},csrf_token:'synthetic-test-csrf'};
   return route.fulfill({json:data});
  });
- await page.goto('/');await page.getByRole('navigation').getByRole('button',{name:'Migraine diary',exact:true}).click();
+ await page.goto('/');await navigate(page,'Migraine diary');
  await page.getByRole('button',{name:'Log an episode',exact:true}).click();
  await page.getByLabel('Attack started',{exact:true}).fill('2026-10-19T10:30');
  await page.getByLabel('Pain severity',{exact:false}).fill('0');
@@ -30,14 +31,14 @@ test('tracking forms, calendar and export use synthetic records',async({page})=>
  await page.getByLabel('Medication name').fill('Synthetic medication');await page.getByLabel('Time taken').fill('2026-10-19T10:45');
  await page.getByRole('button',{name:'Save episode',exact:true}).click();await expect(page.getByRole('dialog')).not.toBeVisible();
  expect(episodes).toHaveLength(2);expect(episodes[1].severity).toBe(0);expect(episodes[1].started_at).toMatch(/Z$/);
- await page.getByRole('navigation').getByRole('button',{name:'Wellness',exact:true}).click();
+ await navigate(page,'Wellness');
  await page.getByRole('button',{name:'Daily check-in'}).click();await page.getByLabel('Check-in date').fill('2026-10-19');
  await page.getByLabel('Stress (0 low–10 high)').fill('0');await page.getByRole('button',{name:'Save check-in'}).click();
  await expect(page.getByRole('dialog')).not.toBeVisible();expect(wellness[0].stress).toBe(0);expect(wellness[0].sleep_hours).toBeNull();
  await page.getByRole('button',{name:'Edit check-in'}).click();await page.getByLabel('Sleep duration (hours)').fill('7.5');await page.getByRole('button',{name:'Save check-in'}).click();await expect(page.getByText('7.5 hours')).toBeVisible();
- await page.getByRole('navigation').getByRole('button',{name:'Early symptoms',exact:true}).click();await page.getByRole('button',{name:'Log early symptom'}).click();
+ await navigate(page,'Early symptoms');await page.getByRole('button',{name:'Log early symptom'}).click();
  await page.getByLabel('Symptom',{exact:true}).fill('Synthetic yawning');await page.getByLabel('First noticed').fill('2026-10-19T09:30');await page.getByRole('button',{name:'Save observation'}).click();await expect(page.getByRole('heading',{name:'Synthetic yawning'})).toBeVisible();
- await page.getByRole('navigation').getByRole('button',{name:'Calendar',exact:true}).click();
+ await navigate(page,'Calendar');
  // Move to the recorded month, independent of the browser's current month.
  const target=new Date(2026,9,1),now=new Date();const months=(now.getFullYear()-target.getFullYear())*12+now.getMonth()-target.getMonth();
  for(let i=0;i<Math.abs(months);i++)await page.getByRole('button',{name:months>0?'Previous month':'Next month'}).click();
@@ -45,8 +46,8 @@ test('tracking forms, calendar and export use synthetic records',async({page})=>
  await expect(page.locator('.entries .entry')).toHaveCount(2);await expect(page.getByText('Wellness · 2026-10-19')).toBeVisible();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.screenshot({path:'test-results/tracking-calendar-mobile.png',fullPage:true});
- await page.getByRole('navigation').getByRole('button',{name:'Settings',exact:true}).click();const downloadPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Export my records (JSON)'}).click();const download=await downloadPromise;expect(download.suggestedFilename()).toBe('migramind-records.json');
- await page.getByRole('navigation').getByRole('button',{name:'Early symptoms',exact:true}).click();page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Delete observation'}).click();await expect(page.getByText('No early symptom observations yet.')).toBeVisible();
+ await navigate(page,'Settings');const downloadPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Export my records (JSON)'}).click();const download=await downloadPromise;expect(download.suggestedFilename()).toBe('migramind-records.json');
+ await navigate(page,'Early symptoms');page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Delete observation'}).click();await expect(page.getByText('No early symptom observations yet.')).toBeVisible();
 });
 
 test.describe('daylight saving timestamp preservation',()=>{
@@ -65,7 +66,7 @@ test.describe('daylight saving timestamp preservation',()=>{
    if(path==='/api/auth/session')data={user:{id:1,email:'synthetic@example.test',display_name:'Alex'},csrf_token:'synthetic-test-csrf'};
   return route.fulfill({json:data});
   });
-  await page.goto('/');await page.getByRole('navigation').getByRole('button',{name:'Migraine diary',exact:true}).click();await page.getByRole('button',{name:'Edit episode'}).click();
+  await page.goto('/');await navigate(page,'Migraine diary');await page.getByRole('button',{name:'Edit episode'}).click();
   await expect(page.getByLabel('Attack started',{exact:true})).toHaveValue('2026-11-01T01:30');
   await page.getByLabel('Your notes').fill('Synthetic updated note');await page.getByRole('button',{name:'Save episode'}).click();await expect(page.getByRole('dialog')).not.toBeVisible();
   expect(updated.started_at).toBe('2026-11-01T06:30:00.000Z');expect(updated.timezone_name).toBe('America/New_York');

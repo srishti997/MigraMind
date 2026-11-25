@@ -1,3 +1,4 @@
+import {navigate} from './navigation';
 import {test,expect,type Page} from '@playwright/test';
 import {installManualAccessibilityFixture} from '../test-fixtures/manual-accessibility';
 
@@ -43,7 +44,7 @@ test('keyboard warning inside diary dialog preserves unsaved notes and restores 
 
 test('idle expiry removes unsaved check-in content and latches sign-in through bootstrap',async({page,baseURL})=>{
  const api=server();await api.install(page,baseURL!);await open(page);
- await page.getByRole('navigation').getByRole('button',{name:'Daily status',exact:true}).click();
+ await navigate(page,'Daily status');
  await page.getByText('Timing and optional observations',{exact:true}).click();const draft=page.getByLabel('Routine changes (optional)',{exact:true});await draft.fill('Synthetic unsaved check-in');
  await page.clock.fastForward(30*MINUTE);await expect(page.getByRole('button',{name:'Sign in',exact:true})).toBeVisible();
  await expect(draft).toHaveCount(0);await expect(page.getByRole('alert')).toContainText('Unsaved entries were discarded');await expect(page.getByRole('heading',{name:'Welcome back.'})).toBeFocused();

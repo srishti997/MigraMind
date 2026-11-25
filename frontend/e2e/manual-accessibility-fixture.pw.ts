@@ -1,3 +1,4 @@
+import {navigate} from './navigation';
 import {test,expect} from '@playwright/test';
 import {installManualAccessibilityFixture} from '../test-fixtures/manual-accessibility';
 
@@ -5,7 +6,7 @@ test('manual fixture is isolated, navigable and rejects persistence',async({page
  await installManualAccessibilityFixture(page,{baseURL:baseURL!});
  await page.goto('/');await expect(page.getByRole('heading',{name:'A gentler day, Review.'})).toBeVisible();
  for(const name of ['Daily status','Migraine diary','Calendar','Insights','Wellness','Early symptoms','Trusted contacts','Caregiver profile','Support feedback','Settings','Account']){
-  await page.getByRole('navigation').getByRole('button',{name,exact:true}).click();
+  await navigate(page,name);
   await expect(page.getByRole('heading',{name,exact:true})).toBeFocused();
  }
  const result=await page.evaluate(async()=>({
@@ -39,7 +40,7 @@ test('Daily Status cancellation restores the correct Edit control and leaves sav
  await page.setViewportSize({width:320,height:850});
  await installManualAccessibilityFixture(page,{baseURL:baseURL!});
  const writes:string[]=[];page.on('request',request=>{if(!['GET','HEAD'].includes(request.method()))writes.push(request.url())});
- await page.goto('/');await page.getByRole('navigation').getByRole('button',{name:'Daily status',exact:true}).click();
+ await page.goto('/');await navigate(page,'Daily status');
  const before=await page.evaluate(async()=>await(await fetch('/api/daily-checkins?include_deleted=true')).json());
  for(const date of ['2026-01-03','2026-01-01','2026-01-03']){
   const edit=page.getByRole('button',{name:'Edit '+date,exact:true});await edit.focus();await page.keyboard.press('Enter');
@@ -58,7 +59,7 @@ test('Daily Status cancellation has a stable focus fallback when its Edit contro
  await page.setViewportSize({width:1280,height:850});
  await installManualAccessibilityFixture(page,{baseURL:baseURL!,failPaths:['/api/daily-checkins/3/history']});
  const writes:string[]=[];page.on('request',request=>{if(!['GET','HEAD'].includes(request.method()))writes.push(request.url())});
- await page.goto('/');await page.getByRole('navigation').getByRole('button',{name:'Daily status',exact:true}).click();
+ await page.goto('/');await navigate(page,'Daily status');
  await page.getByRole('button',{name:'Edit 2026-01-03',exact:true}).click();await expect(page.getByLabel('Migraine status')).toBeFocused();
  await page.getByRole('button',{name:'History 2026-01-03',exact:true}).click();await expect(page.getByRole('alert')).toBeVisible();
  // A masked GET snapshot simulates an unavailable opener; no record is deleted.

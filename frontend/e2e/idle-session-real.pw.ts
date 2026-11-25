@@ -1,3 +1,4 @@
+import {navigate} from './navigation';
 import {test,expect} from '@playwright/test';
 
 // Only a dedicated temporary backend started by the isolated runner is supported.
@@ -26,7 +27,7 @@ async function register(page:any,request:any){
 
 test('real temporary API: deliberate extension then remote global revocation removes private UI',async({page,request,browser,baseURL})=>{
  const email=await register(page,request);
- await page.getByRole('navigation').getByRole('button',{name:'Daily status',exact:true}).click();
+ await navigate(page,'Daily status');
  await page.getByText('Timing and optional observations',{exact:true}).click();
  const draft=page.getByLabel('Routine changes (optional)',{exact:true});await draft.fill('Synthetic unsaved real-API check-in');
  await control(request,'advance',25);await page.clock.fastForward(25*60000);
@@ -39,7 +40,7 @@ test('real temporary API: deliberate extension then remote global revocation rem
   const anonymous=await(await other.request.get(baseURL+'/api/auth/session')).json();
   const login=await other.request.post(baseURL+'/api/auth/login',{headers:{Origin:baseURL!,'X-CSRF-Token':anonymous.csrf_token},data:{email,password}});expect(login.status()).toBe(200);
   const auth=await login.json();expect((await other.request.post(baseURL+'/api/auth/logout-all',{headers:{Origin:baseURL!,'X-CSRF-Token':auth.csrf_token},data:{password}})).status()).toBe(204);
-  await page.getByRole('navigation').getByRole('button',{name:'Account',exact:true}).click();
+  await navigate(page,'Account');
   await expect(page.getByRole('button',{name:'Sign in',exact:true})).toBeVisible();await expect(draft).toHaveCount(0);
  }finally{await other.close()}
 });
